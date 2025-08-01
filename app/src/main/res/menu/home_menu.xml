@@ -1,0 +1,21 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_search_dms"
+    android:title="Search DMs"
+    android:icon="@drawable/search_image"
+    app:showAsAction="ifRoom|collapseActionView"
+    app:actionViewClass="androidx.appcompat.widget.SearchView" /> <!-- If using SearchView directly in menu -->
+
+    <item
+        android:id="@+id/action_notifications"
+    android:title="Notifications"
+    android:icon="@drawable/notification_image"
+        app:showAsAction="ifRoom"/>
+
+    <item
+        android:id="@+id/action_logout"
+        android:title="Logout"
+        app:showAsAction="never" />
+</menu>

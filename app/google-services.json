@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "278509787379",
+    "project_id": "firestoreapplication-b73aa",
+    "storage_bucket": "firestoreapplication-b73aa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:278509787379:android:3c5a2a49198deeb31e7f86",
+        "android_client_info": {
+          "package_name": "com.example.fcmpushnotification"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1rCbtnMexf3sXoitwJ06AXDGij13kTmA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:278509787379:android:98fbb886bd3852561e7f86",
+        "android_client_info": {
+          "package_name": "com.example.firestoreapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1rCbtnMexf3sXoitwJ06AXDGij13kTmA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:278509787379:android:fcecd0534ed037d31e7f86",
+        "android_client_info": {
+          "package_name": "com.example.synapse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1rCbtnMexf3sXoitwJ06AXDGij13kTmA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

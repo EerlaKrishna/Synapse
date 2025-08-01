@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:clipToPadding="false"
+    android:focusable="true">
+
+    <ImageView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:src="@drawable/notification_image" /> <!-- **YOUR ACTUAL NOTIFICATION ICON** -->
+
+    <TextView
+        android:id="@+id/notification_badge_text"
+        android:layout_width="wrap_content"
+        android:minWidth="18dp"
+        android:layout_height="18dp"
+        android:layout_gravity="top|end"
+        android:layout_marginEnd="-8dp"
+        android:layout_marginTop="-4dp"
+        android:background="@drawable/notification_badge_background"
+        android:gravity="center"
+        android:paddingStart="5dp"
+        android:paddingEnd="5dp"
+        android:text="0"
+        android:textColor="@android:color/white"
+        android:textSize="10sp"
+        tools:text="9+"
+        android:visibility="visible" /> <!-- Control visibility via code -->
+</FrameLayout>

@@ -53,20 +53,30 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    implementation(libs.firebase.auth)
+
+    // Firebase
+    // Import the Firebase BoM - THIS MANAGES VERSIONS FOR OTHER FIREBASE LIBRARIES
+    implementation(platform(libs.firebase.bom)) // Ensure libs.firebase.bom points to the BOM artifact
+
+    // Declare the Firebase library dependencies WITHOUT versions
+    implementation(libs.firebase.auth)             // Or "com.google.firebase:firebase-auth-ktx" if not using version catalog
+    implementation(libs.firebase.database.ktx)    // Or "com.google.firebase:firebase-database-ktx"
+
+
+    // Other dependencies
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
-    implementation(libs.firebase.database.ktx)
-    implementation(libs.identity.jvm)
-    implementation(libs.firebase.database)
+    implementation(libs.firebase.messaging.ktx)
+    implementation(libs.firebase.messaging)
+    // implementation(libs.identity.jvm) // Review if this is still needed or if it's related to a specific auth method
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    implementation("androidx.recyclerview:recyclerview")
-
+    implementation("androidx.recyclerview:recyclerview:1.3.2") // Specify a version for non-Firebase libs
 
     // Glide (optional for profile images)
-    implementation("com.github.bumptech.glide:glide:4.15.1")
-    annotationProcessor("com.github.bumptech.glide:compiler:4.15.1")
+    implementation("com.github.bumptech.glide:glide:4.16.0") // Updated to a more recent version
+    annotationProcessor("com.github.bumptech.glide:compiler:4.16.0") // Keep Glide versions consistent
 }
