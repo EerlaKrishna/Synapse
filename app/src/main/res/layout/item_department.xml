@@ -1,9 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/departmentName"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp"
-    android:textSize="16sp"
-    android:background="?selectableItemBackground"
-    android:textColor="#000000" />
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/departmentName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        tools:text="Sample Department Name" />
+
+    <!-- You could add another TextView for channel.description if you want -->
+    <!--
+    <TextView
+        android:id="@+id/departmentDescription"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="14sp"
+        tools:text="This is a sample description for the department." />
+    -->
+
+</LinearLayout>

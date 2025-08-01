@@ -38,6 +38,12 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
 }
 
 dependencies {
@@ -53,6 +59,7 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.firebase.database.ktx)
     implementation(libs.identity.jvm)
+    implementation(libs.firebase.database)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
