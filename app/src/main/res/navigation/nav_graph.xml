@@ -1,0 +1,33 @@
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/broadGroupFragment">
+
+    <fragment
+        android:id="@+id/broadGroupFragment"
+        android:name="com.example.synapse.BroadGroupFragment"
+        android:label="Broad Groups"
+        tools:layout="@layout/fragment_broad_group">
+        <action
+            android:id="@+id/action_broadGroupFragment_to_chatRoomFragment"
+            app:destination="@id/chatRoomFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/chatRoomFragment"
+        android:name="com.example.synapse.chats.ChatRoomFragment"
+        android:label="Chat Room"
+        tools:layout="@layout/fragment_chat_room">
+
+        <argument
+            android:name="groupId"
+            app:argType="string" />
+
+        <argument
+            android:name="groupName"
+            app:argType="string" />
+
+    </fragment>
+
+</navigation>

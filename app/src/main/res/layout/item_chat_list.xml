@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="16dp">
+
+    <!-- Optional: ImageView for a chat icon or profile picture -->
+    <!--
+    <ImageView
+        android:id="@+id/imageViewChatIcon"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:srcCompat="@tools:sample/avatars" />
+    -->
+
+    <TextView
+        android:id="@+id/textViewChatName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintEnd_toStartOf="@id/textViewTimestamp"
+    android:layout_marginEnd="8dp"
+    tools:text="Chat Group Name" />
+
+    <TextView
+        android:id="@+id/textViewLastMessage"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textSize="14sp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        app:layout_constraintStart_toStartOf="@id/textViewChatName"
+        app:layout_constraintTop_toBottomOf="@id/textViewChatName"
+        app:layout_constraintEnd_toStartOf="@id/textViewUnreadCount"
+        android:layout_marginEnd="8dp"
+        tools:text="This is the last message received..." />
+
+    <TextView
+        android:id="@+id/textViewTimestamp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/textViewChatName"
+        tools:text="10:30 AM" />
+
+    <TextView
+        android:id="@+id/textViewUnreadCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/unread_count_background"
+    android:textColor="@android:color/white"
+    android:textSize="12sp"
+    android:textStyle="bold"
+    android:paddingStart="6dp"
+    android:paddingEnd="6dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
+    android:visibility="gone"
+    app:layout_constraintEnd_toEndOf="parent"
+    app:layout_constraintTop_toBottomOf="@id/textViewTimestamp"
+    app:layout_constraintBottom_toBottomOf="@id/textViewLastMessage"
+    android:layout_marginTop="4dp"
+    tools:text="3"
+    tools:visibility="visible"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
