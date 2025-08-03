@@ -143,7 +143,8 @@ class ChatRoomViewModel : ViewModel() {
         val lastMessageDataForChannel = hashMapOf(
             "text" to trimmedText,
             "senderName" to senderName,
-            "timestamp" to currentTimestamp
+            "timestamp" to currentTimestamp,
+            "messageType" to messageType
         )
 
         // 4. Define the paths for the multi-location update
