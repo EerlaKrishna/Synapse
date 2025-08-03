@@ -1,4 +1,4 @@
-package com.example.synapse // Or your actual fragment package
+package com.example.synapse
 
 import android.content.Context
 import android.os.Bundle
@@ -9,32 +9,31 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.navigation.fragment.findNavController
+
 import androidx.recyclerview.widget.LinearLayoutManager
-// import androidx.recyclerview.widget.DividerItemDecoration // Uncomment if you want dividers
-import com.example.synapse.R
 import com.example.synapse.chats.BroadGroupViewModel
-import com.example.synapse.chats.ChatListAdapter
-import com.example.synapse.chats.ChatListItem
-import com.example.synapse.chats.OnChatClickListener
+import com.example.synapse.chats.Group
+import com.example.synapse.chats.GroupListAdapter // Your adapter
 import com.example.synapse.databinding.FragmentBroadGroupBinding
-// import com.google.android.material.snackbar.Snackbar // Uncomment if you use Snackbar
 
+// Remove the OnGroupClickListener interface if it was defined here for the fragment to implement
+// interface OnGroupClickListener {
+//    fun onGroupClicked(group: Group)
+// }
 
+// ChatNavigationListener should be defined (as it was before)
+interface ChatNavigationListener {
+    fun onNavigateToChatRoom(groupId: String, groupName: String?)
+}
 
-
-class BroadGroupFragment : Fragment(), OnChatClickListener {
-
+class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it was there
 
     private var navigationListener: ChatNavigationListener? = null
-
     private var _binding: FragmentBroadGroupBinding? = null
-    private val binding get() = _binding!! // This is safe as long as you only access it between onCreateView and onDestroyView
+    private val binding get() = _binding!!
 
-    // Use activityViewModels as the ViewModel is likely shared with HomeActivity for data updates
     private val broadGroupViewModel: BroadGroupViewModel by activityViewModels()
-
-    private lateinit var chatListAdapter: ChatListAdapter
+    private lateinit var groupListAdapter: GroupListAdapter
 
     companion object {
         private const val TAG = "BroadGroupFragment"
@@ -52,33 +51,12 @@ class BroadGroupFragment : Fragment(), OnChatClickListener {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         Log.d(TAG, "onViewCreated called")
-
-        setupRecyclerView()
+        setupRecyclerView() // Call setupRecyclerView
         observeViewModel()
-
-        // Example: Setup for a FloatingActionButton to create a new group (if you have one)
-        // binding.fabNewGroup.setOnClickListener {
-        //     try {
-        //         // Ensure this action ID exists in your navigation graph
-        //         val action = BroadGroupFragmentDirections.actionBroadGroupFragmentToCreateNewGroupFragment()
-        //         findNavController().navigate(action)
-        //     } catch (e: IllegalStateException) {
-        //         Log.e(TAG, "Navigation failed: NavController not found for FAB.", e)
-        //         Toast.makeText(context, "Could not navigate. Please try again.", Toast.LENGTH_SHORT).show()
-        //     } catch (e: IllegalArgumentException) {
-        //          Log.e(TAG, "Navigation failed: Action/Destination not found for FAB.", e)
-        //          Toast.makeText(context, "Navigation target not found.", Toast.LENGTH_SHORT).show()
-        //     }
-        // }
     }
 
-    /**
-     * Called from HomeActivity to indicate a group should be marked as read in the list
-     * (e.g., if the chat was opened directly via a notification and this fragment is visible).
-     */
     fun markGroupAsReadInList(groupId: String) {
-        Log.d(TAG, "Fragment: Attempting to mark group $groupId as read via ViewModel (from HomeActivity).")
-        // The ViewModel will update its LiveData, and the observer will refresh the list.
+        Log.d(TAG, "Fragment: Attempting to mark group $groupId as read via ViewModel.")
         broadGroupViewModel.markGroupAsRead(groupId)
     }
 
@@ -89,9 +67,7 @@ class BroadGroupFragment : Fragment(), OnChatClickListener {
             Log.d(TAG, "Attached ChatNavigationListener from Activity.")
         } else {
             Log.e(TAG, "$context must implement ChatNavigationListener")
-
             throw ClassCastException("$context must implement ChatNavigationListener")
-                       // throw RuntimeException("$context must implement ChatNavigationListener") // Or handle more gracefully
         }
     }
 
@@ -103,88 +79,86 @@ class BroadGroupFragment : Fragment(), OnChatClickListener {
 
     private fun setupRecyclerView() {
         Log.d(TAG, "Fragment: setupRecyclerView called")
-        // Initialize the adapter, passing 'this' fragment as the click listener
-        chatListAdapter = ChatListAdapter(this) // 'this' implements OnChatClickListener
+        // Initialize the adapter, passing a lambda for click handling
+        groupListAdapter = GroupListAdapter { group -> // This is the lambda
+            // This code block is the implementation of (Group) -> Unit
+            Log.d(TAG, "Fragment: Group item clicked via lambda: GroupID='${group.id}', Name='${group.name}'")
+            broadGroupViewModel.markGroupAsRead(group.id)
+            navigationListener?.onNavigateToChatRoom(group.id, group.name)
+            Log.d(TAG, "Navigation request sent to listener for group: ${group.name}")
+        }
 
         binding.recyclerViewBroadGroups.apply {
-            adapter = chatListAdapter
+            adapter = groupListAdapter
             layoutManager = LinearLayoutManager(context)
-            // Optional: Add ItemDecoration for dividers
-            // addItemDecoration(DividerItemDecoration(context, LinearLayoutManager.VERTICAL))
-            setHasFixedSize(true) // Optimization if item sizes don't change
+            setHasFixedSize(true)
         }
         Log.d(TAG, "Fragment: RecyclerView and Adapter setup complete.")
     }
+// In BroadGroupFragment.kt
 
     private fun observeViewModel() {
-        Log.d(TAG, "Fragment: Setting up ViewModel observer.")
-        broadGroupViewModel.chatList.observe(viewLifecycleOwner) { chatListItems ->
-            Log.d(TAG, "Fragment: chatList LiveData updated. Item count: ${chatListItems.size}")
-            if (chatListItems.isNotEmpty()) {
-                val first = chatListItems[0]
+        Log.d(TAG, "Fragment: Setting up ViewModel observer for 'groups'.")
+        broadGroupViewModel.groups.observe(viewLifecycleOwner) { groups ->
+            Log.d(TAG, "Fragment: 'groups' LiveData updated in Fragment. Item count: ${groups.size}")
+            if (groups.isNotEmpty()) {
+                groups.take(3).forEachIndexed { index, group ->
+                    // --- MODIFIED LOGGING LINE START ---
+                    Log.d(
+                        TAG,
+                        "Fragment: Group $index in list: ID='${group.id}', Name='${group.name}', " +
+                                "LastMsg='${group.lastMessage?.text?.take(30)}...', " + // Access via group.lastMessage?.text
+                                "Sender='${group.lastMessage?.senderName}', " +           // Access via group.lastMessage?.senderName
+                                "Unread='${group.unreadCount}', " +
+                                "TS='${group.lastMessage?.timestamp}'"                  // Access via group.lastMessage?.timestamp
+                    )
+                    // --- MODIFIED LOGGING LINE END ---
+                }
+            }
+
+            // Check if the list submitted to the adapter actually contains the new data
+            // --- MODIFIED LOGGING LINE FOR SUBMITLIST START ---
+            Log.d(TAG, "Fragment: Submitting list to adapter. First item's last message TS (if any): ${groups.firstOrNull()?.lastMessage?.timestamp}")
+            // --- MODIFIED LOGGING LINE FOR SUBMITLIST END ---
+            groupListAdapter.submitList(groups.toList()) {
                 Log.d(
                     TAG,
-                    "Fragment: First item example: Group='${first.groupName}', LastMsg='${
-                        first.lastMessageText?.take(
-                            30
-                        )
-                    }...', Unread='${first.unreadCount}', TS='${first.lastMessageTimestamp}'"
+                    "Fragment: submitList completed. Current list size in adapter: ${groupListAdapter.itemCount}"
                 )
             }
 
-            // Submit a new copy of the list for DiffUtil to work correctly.
-            chatListAdapter.submitList(chatListItems.toList()) {
-                // Callback after list is submitted and diffing is done.
-                // You could scroll to a specific position here if needed.
-                Log.d(
-                    TAG,
-                    "Fragment: submitList completed. Current list size in adapter: ${chatListAdapter.itemCount}"
-                )
-            }
-
-            // Show/hide empty state view
-            if (chatListItems.isEmpty()) {
+            if (groups.isEmpty()) {
                 binding.recyclerViewBroadGroups.visibility = View.GONE
-                // Ensure you have this ID in your fragment_broad_group.xml
                 binding.textViewNoChatsPlaceholder.visibility = View.VISIBLE
-                Log.d(TAG, "Fragment: Displaying empty chat list message.")
+                Log.d(TAG, "Fragment: Displaying empty group list message.")
             } else {
                 binding.recyclerViewBroadGroups.visibility = View.VISIBLE
                 binding.textViewNoChatsPlaceholder.visibility = View.GONE
-                Log.d(TAG, "Fragment: Displaying chat list.")
+                Log.d(TAG, "Fragment: Displaying group list.")
             }
         }
 
-        // Optional: Observe loading state from ViewModel
-        // broadGroupViewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-        //     binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-        // }
+        broadGroupViewModel.error.observe(viewLifecycleOwner) { errorMessage ->
+            errorMessage?.let {
+                Log.e(TAG, "ViewModel error: $it")
+                Toast.makeText(context, "Error: $it", Toast.LENGTH_LONG).show()
+                // broadGroupViewModel.clearError() // If you implement this
+            }
+        }
     }
 
-    // Implementation of OnChatClickListener from ChatListAdapter
-    override fun onChatClicked(chatListItem: ChatListItem) {
-        Log.d(
-            TAG,
-            "Fragment: Chat item clicked: GroupID='${chatListItem.groupId}', Name='${chatListItem.groupName}'"
-        )
-
-        // 1. Mark the group as read in the ViewModel.
-        // The ViewModel updates LiveData, and the observer refreshes the list UI.
-        broadGroupViewModel.markGroupAsRead(chatListItem.groupId)
-
-        // Communicate to Activity to handle navigation
-        navigationListener?.onNavigateToChatRoom(chatListItem.groupId, chatListItem.groupName)
-        Log.d(TAG, "Navigation request sent to listener for group: ${chatListItem.groupName}")
-
-
-
-    }
-
-
+    // If BroadGroupFragment was implementing OnGroupClickListener,
+    // this method is NO LONGER NEEDED because the lambda handles the click directly.
+    // override fun onGroupClicked(group: Group) {
+    //    Log.d(TAG, "Fragment: Group item clicked: GroupID='${group.id}', Name='${group.name}'")
+    //    broadGroupViewModel.markGroupAsRead(group.id)
+    //    navigationListener?.onNavigateToChatRoom(group.id, group.name)
+    //    Log.d(TAG, "Navigation request sent to listener for group: ${group.name}")
+    // }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        binding.recyclerViewBroadGroups.adapter = null // Important to prevent memory leaks with RecyclerView
+        binding.recyclerViewBroadGroups.adapter = null
         _binding = null
         Log.d(TAG, "onDestroyView called, binding set to null")
     }

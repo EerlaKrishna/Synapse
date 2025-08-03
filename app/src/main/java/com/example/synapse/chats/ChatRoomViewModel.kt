@@ -94,8 +94,17 @@ class ChatRoomViewModel : ViewModel() {
 
     // This is part of your ChatRoomViewModel for Firebase Realtime Database
 
-    // In ChatRoomViewModel.kt (Realtime Database version)
-    fun sendMessage(groupId: String, messageType: String,  text: String, senderName: String) { // Added senderName parameter
+    // In ChatRoomViewModel.kt
+
+// Make sure you have a reference to the root of your database
+// private val database: FirebaseDatabase = Firebase.database // You already have this
+// private val currentUserId = FirebaseAuth.getInstance().currentUser?.uid // You already have this
+
+    // Define the prefix for your channels node if it's not just "channels"
+// For this example, we'll assume it's "channels" at the root.
+    private val CHANNELS_NODE_PREFIX = "channels"
+
+    fun sendMessage(groupId: String, messageType: String, text: String, senderName: String) {
         if (currentUserId == null) {
             _error.value = "Cannot send message: User not logged in."
             Log.e(TAG, "sendMessage: Current user is null for groupId $groupId.")
@@ -106,8 +115,13 @@ class ChatRoomViewModel : ViewModel() {
             return
         }
 
-        val groupMessagesNode = database.getReference("$MESSAGES_NODE_PREFIX/$groupId/$messageType")
-        val newMessagePushKey = groupMessagesNode.push().key
+        val trimmedText = text.trim()
+        val currentTimestamp = System.currentTimeMillis()
+
+        // 1. Reference to the specific messages node for this group and message type
+        val messagesPath = "$MESSAGES_NODE_PREFIX/$groupId/$messageType"
+        val groupMessagesNodeRef = database.getReference(messagesPath)
+        val newMessagePushKey = groupMessagesNodeRef.push().key
 
         if (newMessagePushKey == null) {
             _error.value = "Couldn't generate a unique key for the message."
@@ -115,24 +129,52 @@ class ChatRoomViewModel : ViewModel() {
             return
         }
 
-        val messageToSend = com.example.synapse.Message( // Use your Message class
+        // 2. Create the message object to be stored in the messages list
+        val messageToSend = com.example.synapse.Message( // Your existing Message class
             senderId = currentUserId,
-            senderName = senderName, // Use the passed-in senderName
-            text = text.trim(),
-            timestamp = System.currentTimeMillis()
+            senderName = senderName,
+            text = trimmedText,
+            timestamp = currentTimestamp
+            // id will be the newMessagePushKey, but Message class might not need it if key is used as node name
         )
 
+        // 3. Create the data for the /channels/{groupId}/lastMessage update
+        //    This should match the structure your BroadGroupViewModel expects for LastMessage
+        val lastMessageDataForChannel = hashMapOf(
+            "text" to trimmedText,
+            "senderName" to senderName,
+            "timestamp" to currentTimestamp
+        )
+
+        // 4. Define the paths for the multi-location update
+        val channelLastMessagePath = "$CHANNELS_NODE_PREFIX/$groupId/lastMessage"
+        val fullMessagePath = "$messagesPath/$newMessagePushKey"
+
+        // 5. Create a map of updates
+        val updates = hashMapOf<String, Any>(
+            fullMessagePath to messageToSend,                // Write the full message
+            channelLastMessagePath to lastMessageDataForChannel // Update the channel's lastMessage
+        )
+
+
+        Log.d(TAG, "Attempting multi-location update. GroupID: $groupId")
+        Log.d(TAG, "Message Path: $fullMessagePath, Message Data: $messageToSend")
+        Log.d(TAG, "Channel LastMessage Path: $channelLastMessagePath, LastMessage Data: $lastMessageDataForChannel")
+        Log.d(TAG, "Full updates map: $updates")
         viewModelScope.launch {
             try {
-                groupMessagesNode.child(newMessagePushKey).setValue(messageToSend).await()
-                Log.d(TAG, "Message sent successfully to groupId: $groupId, messageId (push key): $newMessagePushKey")
+                // Perform the multi-location update
+                database.reference.updateChildren(updates).await() // Use root reference for multi-path
+
+                Log.d(TAG, "Message sent and channel lastMessage updated successfully for groupId: $groupId. Message path: $fullMessagePath, Channel path: $channelLastMessagePath")
                 _error.value = null
             } catch (e: Exception) {
-                Log.e(TAG, "Error sending message to groupId: $groupId, push key: $newMessagePushKey", e)
+                Log.e(TAG, "Error sending message or updating channel for groupId: $groupId", e)
                 _error.value = "Failed to send message: ${e.message}"
             }
         }
     }
+
 
     private fun clearMessagesListener() {
         messagesListener?.let { listener ->

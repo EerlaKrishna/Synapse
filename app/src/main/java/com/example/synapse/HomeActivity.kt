@@ -222,39 +222,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         })
     }
 
-    override fun onNavigateToChatRoom(groupId: String, groupName: String) {
-        Log.d("HomeActivity", "Received navigation request to chat room: ID='$groupId', Name='$groupName'")
-        if (navController == null) {
-            Log.e("HomeActivity", "Cannot navigate: Main NavController is null.")
-            Toast.makeText(this, "Error: Could not open chat.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        try {
-            // Assuming you have an action from your current location in HomeActivity's nav graph
-            // to the ChatRoomFragment.
-            // OR if ChatRoomFragment is a top-level destination you can navigate directly by ID.
-
-            // Example using an action from the current destination (if applicable)
-            // val action = CurrentFragmentDirections.actionToChatRoomFragment(groupId, groupName)
-            // navController?.navigate(action)
-
-            // Example navigating directly to ChatRoomFragment destination ID with arguments
-            // Ensure R.id.chatRoomFragment is a destination in your HomeActivity's nav_graph.xml
-            val bundle = Bundle().apply {
-                putString("groupId", groupId)
-                putString("groupName", groupName)
-            }
-            // Replace R.id.chatRoomFragment with your actual destination ID for the chat room
-            // or an action ID that leads to it.
-            navController?.navigate(R.id.chatRoomFragment, bundle) // Or your specific action ID
-
-            Log.d("HomeActivity", "Navigation to ChatRoomFragment initiated.")
-
-        } catch (e: Exception) { // Catch generic Exception to see any navigation issue
-            Log.e("HomeActivity", "Navigation to ChatRoomFragment failed.", e)
-            Toast.makeText(this, "Error opening chat room.", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     private fun observeViewModels() {
         // For Direct Messages unread count (your existing logic)
@@ -743,6 +710,41 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
     fun clearCurrentlyOpenBroadGroupId() {
         currentlyOpenBroadGroupId = null
     }
+
+    override fun onNavigateToChatRoom(groupId: String, groupName: String?) {
+        Log.d("HomeActivity", "Received navigation request to chat room: ID='$groupId', Name='$groupName'")
+        if (navController == null) {
+            Log.e("HomeActivity", "Cannot navigate: Main NavController is null.")
+            Toast.makeText(this, "Error: Could not open chat.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            // Assuming you have an action from your current location in HomeActivity's nav graph
+            // to the ChatRoomFragment.
+            // OR if ChatRoomFragment is a top-level destination you can navigate directly by ID.
+
+            // Example using an action from the current destination (if applicable)
+            // val action = CurrentFragmentDirections.actionToChatRoomFragment(groupId, groupName)
+            // navController?.navigate(action)
+
+            // Example navigating directly to ChatRoomFragment destination ID with arguments
+            // Ensure R.id.chatRoomFragment is a destination in your HomeActivity's nav_graph.xml
+            val bundle = Bundle().apply {
+                putString("groupId", groupId)
+                putString("groupName", groupName)
+            }
+            // Replace R.id.chatRoomFragment with your actual destination ID for the chat room
+            // or an action ID that leads to it.
+            navController?.navigate(R.id.chatRoomFragment, bundle) // Or your specific action ID
+
+            Log.d("HomeActivity", "Navigation to ChatRoomFragment initiated.")
+
+        } catch (e: Exception) { // Catch generic Exception to see any navigation issue
+            Log.e("HomeActivity", "Navigation to ChatRoomFragment failed.", e)
+            Toast.makeText(this, "Error opening chat room.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
 
     //endregion
 }

@@ -20,6 +20,7 @@ identityJvm = "202411.1"
 firebaseDatabase = "22.0.0"
 firebaseMessagingKtx = "24.1.2"
 firebaseMessaging = "25.0.0"
+uiTextAndroid = "1.8.3"
 
 
 [libraries]
@@ -41,6 +42,7 @@ identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.
 firebase-database = { group = "com.google.firebase", name = "firebase-database", version.ref = "firebaseDatabase" }
 firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx", version.ref = "firebaseMessagingKtx" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
+androidx-ui-text-android = { group = "androidx.compose.ui", name = "ui-text-android", version.ref = "uiTextAndroid" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

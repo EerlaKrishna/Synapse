@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.firebase.messaging)
+    implementation(libs.androidx.ui.text.android)
     //implementation(libs.firebase.firestore.ktx)
     // implementation(libs.mediation.test.suite)
     // implementation(libs.identity.jvm) // Review if this is still needed or if it's related to a specific auth method
