@@ -22,7 +22,7 @@ class MessageAdapter(private var messages: List<Message>) : // Made messages var
 
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
         val message = messages[position]
-        holder.binding.messageContentText.text = message.content
+        holder.binding.messageContentText.text = message.text
         // Format the timestamp (optional)
         holder.binding.messageTimestampText.text = formatTimestamp(message.timestamp)
         // IMPORTANT: DO NOT DISPLAY message.sessionId

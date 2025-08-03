@@ -1,92 +1,663 @@
 package com.example.synapse
 
+import android.Manifest
 import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.viewModels
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels // For normal ViewModels
 import androidx.appcompat.app.AppCompatActivity
-import com.example.synapse.databinding.ActivityHomeBinding // Import the generated binding class
-import com.google.android.material.tabs.TabLayoutMediator // Import for TabLayout
-import com.google.firebase.auth.FirebaseAuth // Import for logout
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.ViewModelProvider // Required for activity-scoped ViewModel
+import androidx.navigation.NavController
+import androidx.navigation.fragment.NavHostFragment
+import com.example.synapse.chats.BroadGroupViewModel
+import com.example.synapse.chats.GroupData
+import com.example.synapse.databinding.ActivityHomeBinding
+import com.google.android.material.tabs.TabLayout
+import com.google.android.material.tabs.TabLayoutMediator
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.*
 
-class HomeActivity : AppCompatActivity() {
+// Assuming Message.kt exists:
+// import com.example.synapse.models.Message // Make sure this path is correct
 
-    private lateinit var binding: ActivityHomeBinding // Declare binding variable
-    private lateinit var auth: FirebaseAuth // Declare Firebase Auth
+class HomeActivity : AppCompatActivity(),ChatNavigationListener {
 
-    // Define your tab titles - make sure this matches the number of fragments in HomeViewPagerAdapter
+
+    private var navController: NavController? = null
+
+
+    private val TAG = "HomeActivity" // For logging
+
+
+    // --- ViewBinding and Core UI ---
+    private lateinit var binding: ActivityHomeBinding
     private val tabTitles = arrayOf("Broad Groups", "Direct Messages")
 
-    private val unreadCountViewModel: UnreadCountViewModel by viewModels()
-    private var notificationBellMenuItem: MenuItem? = null
+    // --- Authentication & Firebase ---
+    lateinit var auth: FirebaseAuth
+    private lateinit var database: FirebaseDatabase
+    private var channelsMetadataValueListener: ValueEventListener? = null // Renamed for clarity
+    private val groupMessageDataListeners = mutableMapOf<String, ValueEventListener>() // Key: "groupId/messageTypePath"
+    private val activeFirebasePathsForListeners = mutableMapOf<String, DatabaseReference>() // Store refs for removal
 
+    // --- Preferences & ViewModels ---
+    private lateinit var messagePrefs: SharedPreferences
+    private val unreadCountViewModel: UnreadCountViewModel by viewModels() // For DMs
+    private lateinit var broadGroupViewModel: BroadGroupViewModel // For Broad Groups chat list
+
+    // --- Notification & Permission ---
+    private var dmNotificationBellMenuItem: MenuItem? = null
+    private val requestPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+            handleNotificationPermissionResult(isGranted)
+        }
+
+    // --- Group Data Cache (ID -> GroupData(id, name)) ---
+    // This cache is still useful for quick name lookups if needed,
+    // though ViewModel becomes primary source for UI list items.
+  private val groupDataCache= mutableMapOf<String,com.example.synapse.chats.GroupData>()
+
+    // --- Tracking currently open broad group chat ---
+    // To help BroadGroupFragment clear unread count onResume
+    private var currentlyOpenBroadGroupId: String? = null
+
+
+    // Helper data class for basic group info (name, id) - Keep this definition
+    data class GroupData(val id: String, val name: String)
+
+    companion object {
+        private const val TAG = "HomeActivity"
+        // To pass to GroupChatActivity and get back which group was opened
+        const val EXTRA_OPENED_GROUP_ID = "extra_opened_group_id"
+    }
+
+
+    //region Lifecycle Methods
+    //==============================================================================================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityHomeBinding.inflate(layoutInflater) // Inflate the layout
-        setContentView(binding.root) // Set the content view
+        WindowCompat.setDecorFitsSystemWindows(window, false) // Enable edge-to-edge
 
-        auth = FirebaseAuth.getInstance() // Initialize Firebase Auth
+        binding = ActivityHomeBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        // Toolbar setup
-        setSupportActionBar(binding.toolbarHome) // Set the toolbar
-        supportActionBar?.title = "Synapse" // Optional: Set a title for the Toolbar
 
-        // ViewPager and TabLayout setup
-        val adapter = HomeViewPagerAdapter(this) // 'this' is the FragmentActivity
-        binding.viewPagerHome.adapter = adapter
-        TabLayoutMediator(binding.tabLayoutHome, binding.viewPagerHome) { tab, position ->
-            tab.text = tabTitles[position]
+        // Setup ViewPager2 and TabLayout (Your existing setup)
+        val viewPager = binding.viewPagerHome // Assuming ID is view_pager_home
+        val tabLayout = binding.tabLayoutHome // Assuming ID is tab_layout_home
+        val adapter = HomeViewPagerAdapter(this)
+        viewPager.adapter = adapter
+
+        com.google.android.material.tabs.TabLayoutMediator(tabLayout, viewPager) { tab, position ->
+            tab.text = when (position) {
+                0 -> "CHANNELS" // Or getString(R.string.channels)
+                1 -> "DIRECT MESSAGES" // Or getString(R.string.direct_messages)
+                else -> null
+            }
         }.attach()
 
-        // Observe unread count changes
-        unreadCountViewModel.unreadDirectMessagesCount.observe(this) { count ->
-            updateNotificationIconBadge(count)
+        // Setup Toolbar
+        setSupportActionBar(binding.toolbarHome)
+
+        initializeCoreComponents()
+        setupUI() // Includes ViewPager and TabLayout
+        observeViewModels() // For DM unread count
+
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment_activity_home) as NavHostFragment? // Replace with your NavHostFragment ID
+        navController = navHostFragment?.navController
+
+        if (navController == null) {
+            Log.e("HomeActivity", "NavController not found from nav_host_fragment_activity_home. Ensure it's in the layout and correctly typed.")
         }
 
-        // TODO: Initial fetch of unread count from your data source
-        // This should happen after your user is authenticated and you have access to their data.
-        // For example, if you fetch this from a repository:
-        // unreadCountViewModel.loadInitialCounts(auth.currentUser?.uid)
-        // Or if you get it directly:
-        // val initialCount = getInitialUnreadCountFromSomewhere()
-        // unreadCountViewModel.setUnreadDirectMessagesCount(initialCount)
-        Log.d("HomeActivity", "onCreate: ViewModel observation setup and UI initialized.")
-        // Simulate initial fetch for testing if you don't have a data source yet
-        // unreadCountViewModel.setUnreadDirectMessagesCount(3) // Example initial count
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.home_menu, menu)
-        notificationBellMenuItem = menu?.findItem(R.id.action_notifications)
-        // Observe the value directly here as well, in case it's already set when menu is created
-        // This ensures the badge is updated if the menu is recreated (e.g., on configuration change)
-        unreadCountViewModel.unreadDirectMessagesCount.value?.let {
-            updateNotificationIconBadge(it)
-        }
-        return true
-    }
-
-    private fun updateNotificationIconBadge(count: Int) {
-        notificationBellMenuItem?.let { menuItem ->
-            if (count > 0) {
-                menuItem.setActionView(R.layout.menu_item_notification_badge)
-                val badgeTextView = menuItem.actionView?.findViewById<TextView>(R.id.notification_badge_text)
-                badgeTextView?.text = count.toString()
-                // If your menu_item_notification_badge is just the TextView and doesn't include the icon,
-                // you might need to ensure the original icon is still visible or set it programmatically.
-                // For example, if your R.id.action_notifications in home_menu.xml has an icon:
-                // menuItem.setIcon(R.drawable.ic_notifications_default) // or your specific notification icon
+        navController?.addOnDestinationChangedListener { controller, destination, arguments ->
+            if (destination.id == R.id.chatRoomFragment) {
+                Log.d(TAG, "Navigated to ChatRoomFragment. Hiding tab container, showing NavHost.")
+                binding.tabContentContainer.visibility = View.GONE
+                binding.navHostFragmentActivityHome.visibility = View.VISIBLE // Show the NavHost
             } else {
-                menuItem.actionView = null
-                // Optionally reset the icon if it was changed or part of the action view
-                // menuItem.setIcon(R.drawable.ic_notifications_default)
+                Log.d(TAG, "Navigated away from ChatRoomFragment. Showing tab container, hiding NavHost.")
+                binding.tabContentContainer.visibility = View.VISIBLE
+                binding.navHostFragmentActivityHome.visibility = View.GONE // Hide the NavHost
             }
         }
-        Log.d("HomeActivity", "updateNotificationIconBadge called with count: $count")
+
+
+        if (auth.currentUser == null) {
+            Log.w(TAG, "User not logged in. Redirecting to LoginActivity.")
+            navigateToLogin()
+            return
+        }
+
+        // Fetch initial group list and then setup message listeners
+        fetchBroadGroupMetadataAndSetupListeners()
+
+        Log.d(TAG, "onCreate completed.")
+    }
+
+    // HomeActivity.kt (Continued from onResume())
+
+    override fun onResume() {
+        super.onResume()
+        // Check if we are returning from GroupChatActivity or if a group was opened
+        // This helps the BroadGroupFragment to clear the unread count if it's visible
+        intent.getStringExtra(EXTRA_OPENED_GROUP_ID)?.let { openedGroupId ->
+            Log.d(TAG, "Resuming HomeActivity, group $openedGroupId was potentially opened.")
+            broadGroupViewModel.markGroupAsRead(openedGroupId) // Update ViewModel state
+            currentlyOpenBroadGroupId = openedGroupId // Set for fragment to pick up if it's active
+            intent.removeExtra(EXTRA_OPENED_GROUP_ID) // Clear the extra after processing
+        }
+
+        // If the Broad Groups tab is currently selected, tell the fragment
+        // to check and clear the unread count for the 'currentlyOpenBroadGroupId'
+        if (binding.viewPagerHome.currentItem == tabTitles.indexOf("Broad Groups")) {
+            val fragment = supportFragmentManager.findFragmentByTag("f${binding.viewPagerHome.currentItem}")
+            if (fragment is BroadGroupFragment) {
+                currentlyOpenBroadGroupId?.let {
+                    fragment.markGroupAsReadInList(it)
+                    clearCurrentlyOpenBroadGroupId() // Clear after fragment has handled it
+                }
+            }
+        }
+        Log.d(TAG, "onResume completed.")
+    }
+
+
+    override fun onDestroy() {
+        super.onDestroy()
+        clearAllFirebaseListeners()
+        Log.d(TAG, "onDestroy: Listeners cleared.")
+    }
+    //endregion
+
+    //region Initialization and UI Setup
+    //==============================================================================================
+    private fun initializeCoreComponents() {
+        auth = FirebaseAuth.getInstance()
+        database = FirebaseDatabase.getInstance()
+        messagePrefs = getSharedPreferences("broad_group_message_prefs", MODE_PRIVATE)
+
+        // Initialize the ViewModel scoped to this Activity
+        broadGroupViewModel = ViewModelProvider(this).get(BroadGroupViewModel::class.java)
+    }
+
+    private fun setupUI() {
+        setSupportActionBar(binding.toolbarHome)
+        supportActionBar?.title = getString(R.string.app_name) // Or "Synapse"
+
+        val adapter = HomeViewPagerAdapter(this) // Your existing adapter
+        binding.viewPagerHome.adapter = adapter
+        TabLayoutMediator(binding.tabLayoutHome, binding.viewPagerHome) { tab, position ->
+            tab.text = tabTitles.getOrNull(position) ?: "Tab ${position + 1}"
+        }.attach()
+
+        binding.tabLayoutHome.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                if (tab?.position == tabTitles.indexOf("Broad Groups")) {
+                    // When Broad Groups tab is selected, ensure the fragment (if it was just created or resumed)
+                    // knows about any group that was just opened.
+                    currentlyOpenBroadGroupId?.let { groupId ->
+                        val fragment = supportFragmentManager.findFragmentByTag("f${tab.position}")
+                        if (fragment is BroadGroupFragment) {
+                            fragment.markGroupAsReadInList(groupId)
+                            clearCurrentlyOpenBroadGroupId()
+                        }
+                    }
+                }
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
+    }
+
+    override fun onNavigateToChatRoom(groupId: String, groupName: String) {
+        Log.d("HomeActivity", "Received navigation request to chat room: ID='$groupId', Name='$groupName'")
+        if (navController == null) {
+            Log.e("HomeActivity", "Cannot navigate: Main NavController is null.")
+            Toast.makeText(this, "Error: Could not open chat.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            // Assuming you have an action from your current location in HomeActivity's nav graph
+            // to the ChatRoomFragment.
+            // OR if ChatRoomFragment is a top-level destination you can navigate directly by ID.
+
+            // Example using an action from the current destination (if applicable)
+            // val action = CurrentFragmentDirections.actionToChatRoomFragment(groupId, groupName)
+            // navController?.navigate(action)
+
+            // Example navigating directly to ChatRoomFragment destination ID with arguments
+            // Ensure R.id.chatRoomFragment is a destination in your HomeActivity's nav_graph.xml
+            val bundle = Bundle().apply {
+                putString("groupId", groupId)
+                putString("groupName", groupName)
+            }
+            // Replace R.id.chatRoomFragment with your actual destination ID for the chat room
+            // or an action ID that leads to it.
+            navController?.navigate(R.id.chatRoomFragment, bundle) // Or your specific action ID
+
+            Log.d("HomeActivity", "Navigation to ChatRoomFragment initiated.")
+
+        } catch (e: Exception) { // Catch generic Exception to see any navigation issue
+            Log.e("HomeActivity", "Navigation to ChatRoomFragment failed.", e)
+            Toast.makeText(this, "Error opening chat room.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun observeViewModels() {
+        // For Direct Messages unread count (your existing logic)
+        unreadCountViewModel.unreadDirectMessagesCount.observe(this) { count ->
+            updateDirectMessageNotificationBadge(count)
+        }
+        // No direct observation of broadGroupViewModel.chatList here,
+        // as BroadGroupFragment handles that.
+    }
+    //endregion
+
+    //region Notification Permission
+    //==============================================================================================
+    private fun askNotificationPermissionAndThenSetupMessageListeners() { // Renamed for clarity
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            when {
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED -> {
+                    Log.d(TAG, "POST_NOTIFICATIONS permission already granted.")
+                    setupAllBroadGroupMessageListeners()
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    Log.i(TAG, "Showing rationale for POST_NOTIFICATIONS permission.")
+                    Toast.makeText(this, "Please grant notification permission to receive group updates.", Toast.LENGTH_LONG).show()
+                    // Consider showing a more formal dialog here that explains why you need the permission
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+                else -> {
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        } else {
+            Log.d(TAG, "No runtime notification permission needed for this Android version.")
+            setupAllBroadGroupMessageListeners()
+        }
+    }
+
+    private fun handleNotificationPermissionResult(isGranted: Boolean) {
+        if (isGranted) {
+            Log.d(TAG, "POST_NOTIFICATIONS permission granted by user.")
+            setupAllBroadGroupMessageListeners()
+        } else {
+            Log.w(TAG, "POST_NOTIFICATIONS permission denied by user.")
+            Toast.makeText(this, "Notifications for group messages may not be shown as permission was denied.", Toast.LENGTH_LONG).show()
+            // Still setup listeners for in-app UI updates even if system notifications are denied
+            setupAllBroadGroupMessageListeners()
+        }
+    }
+    //endregion
+
+    //region Data Fetching & Listener Setup
+    //==============================================================================================
+    private fun fetchBroadGroupMetadataAndSetupListeners() {
+        if (auth.currentUser == null) {
+            Log.w(TAG, "Cannot fetch group metadata, user not logged in.")
+            return
+        }
+        // Show loading state in BroadGroupFragment if it's active
+        // broadGroupViewModel.setLoadingState(true) // You'd need to add this to ViewModel
+
+        val groupsMetadataRef = database.getReference("channels") // Your node for group names/metadata
+
+        // Clear existing listeners before fetching new metadata
+        channelsMetadataValueListener?.let {
+            groupsMetadataRef.removeEventListener(it)
+        }
+        clearAllGroupMessageListenersOnly() // Clear only message listeners, not this metadata listener
+
+        Log.d(TAG, "Fetching broad group metadata from 'channels'.")
+        channelsMetadataValueListener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val fetchedGroups = mutableListOf<com.example.synapse.chats.GroupData>()
+                groupDataCache.clear()
+
+                if (snapshot.exists()) {
+                    for (groupSnapshot in snapshot.children) {
+                        val groupId = groupSnapshot.key
+                        val groupName = groupSnapshot.child("name").getValue(String::class.java)
+                        if (groupId != null && groupName != null) {
+                            val group = com.example.synapse.chats.GroupData(groupId, groupName)
+                            fetchedGroups.add(group)
+                            groupDataCache[groupId] = group // Update cache
+                        } else {
+                            Log.w(TAG, "Skipping group with null id or name: ${groupSnapshot.key}")
+                        }
+                    }
+                    Log.d(TAG, "Fetched ${fetchedGroups.size} groups metadata.")
+                } else {
+                    Log.w(TAG, "No data found at 'channels' node.")
+                }
+                // Update ViewModel with the new list of groups
+                // This will also trigger removal of groups in ViewModel not in fetchedGroups
+                broadGroupViewModel.initializeOrUpdateGroups(fetchedGroups)
+
+                // Now that groups are initialized in ViewModel, ask for permission (if needed)
+                // and then setup message listeners for these groups.
+                askNotificationPermissionAndThenSetupMessageListeners()
+                // broadGroupViewModel.setLoadingState(false) // Update loading state
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Failed to fetch broad group metadata: ${error.message}")
+                broadGroupViewModel.initializeOrUpdateGroups(emptyList()) // Clear groups in ViewModel on error
+                // broadGroupViewModel.setLoadingState(false) // Update loading state
+                // Consider showing an error message to the user
+            }
+        }
+        groupsMetadataRef.addValueEventListener(channelsMetadataValueListener!!) // Listen for ongoing changes
+    }
+
+// HomeActivity.kt (Continued from setupAllBroadGroupMessageListeners())
+
+    // This sets up listeners for messages within each group identified by fetchBroadGroupMetadata
+    private fun setupAllBroadGroupMessageListeners() {
+        if (auth.currentUser == null) {
+            Log.w(TAG, "Cannot setup message listeners, user not logged in.")
+            return
+        }
+
+        // Get the list of group IDs from the ViewModel or cache to ensure we listen to the correct set
+        // Using groupDataCache as it's directly populated by fetchBroadGroupMetadata
+        if (groupDataCache.isEmpty()) {
+            Log.i(TAG, "No group data cached. No message listeners to set up.")
+            // Ensure any old listeners are cleared if the cache becomes empty
+            clearAllGroupMessageListenersOnly()
+            return
+        }
+
+        Log.d(TAG, "Setting up message listeners for ${groupDataCache.size} groups based on cached metadata.")
+
+        // Create a set of current listener keys to find and remove obsolete listeners
+        val currentListenerKeys = mutableSetOf<String>()
+
+        groupDataCache.values.forEach { groupData -> // groupData is GroupData(id, name)
+            // IMPORTANT: Ensure groupData.name is a valid Firebase key!
+            // It should not contain '.', '$', '#', '[', ']', '/', or ASCII control characters.
+            if (isValidFirebaseKey(groupData.name)) {
+                // Listen to "improvement_messages"
+                val improvementKey = "${groupData.id}/improvement_messages" // Use ID for internal key
+                listenForNewMessagesInGroup(groupData.id, groupData.name, "improvement_messages")
+                currentListenerKeys.add(improvementKey)
+
+                // Listen to "drawback_messages"
+                val drawbackKey = "${groupData.id}/drawback_messages" // Use ID for internal key
+                listenForNewMessagesInGroup(groupData.id, groupData.name, "drawback_messages")
+                currentListenerKeys.add(drawbackKey)
+
+                // Add other message types if necessary, following the same pattern
+            } else {
+                Log.e(TAG, "Skipping listener setup for group '${groupData.name}' (ID: ${groupData.id}) due to invalid characters in name for Firebase key.")
+            }
+        }
+
+        // Remove listeners for groups/messageTypes that are no longer active
+        val listenersToRemove = groupMessageDataListeners.keys.filterNot { it in currentListenerKeys }
+        listenersToRemove.forEach { keyToRemove ->
+            groupMessageDataListeners.remove(keyToRemove)?.let { listener ->
+                activeFirebasePathsForListeners.remove(keyToRemove)?.removeEventListener(listener)
+                Log.d(TAG, "Removed obsolete message listener for key: $keyToRemove")
+            }
+        }
+    }
+
+    private fun isValidFirebaseKey(name: String): Boolean {
+        // Firebase keys cannot contain '.', '$', '#', '[', ']', '/', or ASCII control characters 0-31 or 127.
+        return !name.contains(Regex("[.#$\\[\\]/]|[\u0000-\u001F\u007F]"))
+    }
+
+// HomeActivity.kt (Continued from listenForNewMessagesInGroup())
+
+    // Modified to accept groupIdForMapping (for ViewModel) and groupNameForPath (for Firebase path)
+    private fun listenForNewMessagesInGroup(
+        groupIdForMapping: String, // The actual ID of the group
+        groupNameForPath: String,  // The name used in the Firebase path (e.g., "messages/GroupName/...")
+        messageTypePath: String    // e.g., "improvement_messages" or "drawback_messages"
+    ) {
+        val currentUserUid = auth.currentUser?.uid
+        if (currentUserUid == null) {
+            Log.w(TAG, "User not logged in, cannot listen for messages in $groupNameForPath/$messageTypePath.")
+            return
+        }
+
+        val firebasePath = "messages/$groupNameForPath/$messageTypePath"
+        val groupMessagesRef = database.getReference(firebasePath)
+        // Use a composite key that includes groupId and messageTypePath for uniqueness
+        // This ensures that if two different groups happen to have the same messageTypePath (unlikely but possible),
+        // their listeners are managed independently.
+        val listenerCompositeKey = "$groupIdForMapping/$messageTypePath"
+
+        // Remove existing listener for this specific path if it exists, before adding a new one
+        groupMessageDataListeners[listenerCompositeKey]?.let { existingListener ->
+            activeFirebasePathsForListeners[listenerCompositeKey]?.removeEventListener(existingListener)
+            Log.d(TAG, "Removed existing message listener for key: $listenerCompositeKey before re-adding.")
+        }
+        // Also remove from active paths map to keep it clean
+        activeFirebasePathsForListeners.remove(listenerCompositeKey)
+
+
+        var lastSeenTimestampForNotifications = getLastSeenMessageTimestamp(listenerCompositeKey) // Use composite key for prefs
+        Log.d(
+            TAG,
+            "Attaching listener for messages at path: $firebasePath. Last seen for notifications: $lastSeenTimestampForNotifications"
+        )
+
+        val newListener = object : ValueEventListener {
+            private var initialDataProcessed = false
+            private var latestTimestampInThisSnapshot: Long = 0L
+
+            override fun onDataChange(snapshot: DataSnapshot) {
+                if (!snapshot.exists()) {
+                    Log.d(TAG, "No messages found for path $firebasePath.")
+                    // If no messages, and the group exists in ViewModel, ensure it shows "No messages"
+                    // The ViewModel's publishChatListUpdates will handle sorting and display
+                    broadGroupViewModel.getChatListItem(groupIdForMapping)?.let {
+                        if (it.lastMessageText != null || it.lastMessageTimestamp != 0L) { // Only update if it had a message before
+                            broadGroupViewModel.updateGroupWithMessage(
+                                groupId = groupIdForMapping,
+                                groupName = groupDataCache[groupIdForMapping]?.name, // Get current name from cache
+                                messageText = null, // Explicitly set to null or "No messages"
+                                messageTimestamp = 0L, // Reset timestamp
+                                senderName = null,
+                                senderId = null,
+                               // isNewUnreadOverride = false // Ensure no unread count
+                            )
+                        }
+                    }
+                    initialDataProcessed = true
+                    return
+                }
+
+                var newMessagesForNotificationFoundInThisSnapshot = false
+                latestTimestampInThisSnapshot = 0L
+                var latestMessageForUI: Message? = null
+                var latestMessageSenderNameForUI: String? = null
+
+                snapshot.children.forEach { messageSnapshot ->
+                    val message = messageSnapshot.getValue(Message::class.java) // Ensure you have Message.kt data class
+                    val messageId = messageSnapshot.key
+
+                    if (message != null && messageId != null) {
+                        if (message.timestamp > latestTimestampInThisSnapshot) {
+                            latestTimestampInThisSnapshot = message.timestamp
+                            latestMessageForUI = message
+                            latestMessageSenderNameForUI = message.senderName // Assuming Message has senderName
+                        }
+
+                        // --- START DEBUG LOGS FOR MESSAGE PROCESSING ---
+                        Log.d(TAG, "HomeActivity: Received message for group '$groupNameForPath' (ID: $groupIdForMapping). Text: '${message.text}', Sender: '${message.senderName}', Timestamp: ${message.timestamp}")
+                        // --- END DEBUG LOGS FOR MESSAGE PROCESSING ---
+
+
+                        // System Notification Logic (only for messages newer than last seen by notifications)
+                        if (message.timestamp > lastSeenTimestampForNotifications && initialDataProcessed) {
+                            if (message.senderId != currentUserUid) {
+                                newMessagesForNotificationFoundInThisSnapshot = true
+                                Log.i(
+                                    TAG,
+                                    "NEW message for NOTIFICATION in group (name: $groupNameForPath, type: $messageTypePath): ${message.text}"
+                                )
+                                val notificationId = (listenerCompositeKey.hashCode() + message.timestamp.hashCode()) % Int.MAX_VALUE
+                                NotificationHelper.showBroadGroupMessageNotification(
+                                    applicationContext,
+                                    groupIdForMapping,      // Pass ID for intent extras
+                                    groupNameForPath,       // Pass Name for display in notification
+                                    message.senderName ?: "Someone",
+                                    message.text ?: "New message received",
+                                    notificationId
+                                )
+                            }
+                        }
+                    }
+                } // End of snapshot.children.forEach
+
+                // Update ViewModel with the latest message from this snapshot
+                latestMessageForUI?.let { msg ->
+                    // --- START DEBUG LOGS BEFORE VIEWMODEL UPDATE ---
+                    Log.d(TAG, "HomeActivity: Updating ViewModel for group '$groupNameForPath' (ID: $groupIdForMapping) with latest message. Text: '${msg.text}', Sender: '${latestMessageSenderNameForUI}', Timestamp: ${msg.timestamp}")
+                    // --- END DEBUG LOGS BEFORE VIEWMODEL UPDATE ---
+
+                    broadGroupViewModel.updateGroupWithMessage(
+                        groupId = groupIdForMapping,
+                        groupName = groupDataCache[groupIdForMapping]?.name,
+                        messageText = msg.text,
+                        messageTimestamp = msg.timestamp,
+                        senderName = latestMessageSenderNameForUI,
+                        senderId = msg.senderId
+                    )
+
+                    // --- START DEBUG LOGS AFTER VIEWMODEL UPDATE ---
+                    Log.d(TAG, "HomeActivity: Called broadGroupViewModel.updateGroupWithMessage for group '$groupNameForPath' (ID: $groupIdForMapping)")
+                    // --- END DEBUG LOGS AFTER VIEWMODEL UPDATE ---
+                }
+
+
+                if (newMessagesForNotificationFoundInThisSnapshot && latestTimestampInThisSnapshot > lastSeenTimestampForNotifications) {
+                    saveLastSeenMessageTimestamp(listenerCompositeKey, latestTimestampInThisSnapshot)
+                    lastSeenTimestampForNotifications = latestTimestampInThisSnapshot
+                    Log.d(TAG, "Updated lastSeenTimestampForNotifications for $listenerCompositeKey to $lastSeenTimestampForNotifications")
+                }
+
+                if (!initialDataProcessed) {
+                    if (latestTimestampInThisSnapshot > 0 && latestTimestampInThisSnapshot > lastSeenTimestampForNotifications) {
+                        saveLastSeenMessageTimestamp(listenerCompositeKey, latestTimestampInThisSnapshot)
+                        lastSeenTimestampForNotifications = latestTimestampInThisSnapshot
+                        Log.d(
+                            TAG,
+                            "Initial data processed for $listenerCompositeKey. Set lastSeenTimestampForNotifications to $lastSeenTimestampForNotifications."
+                        )
+                    }
+                    initialDataProcessed = true
+                }
+            } // End of onDataChange
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(
+                    TAG,
+                    "Listener cancelled for messages at path: $firebasePath. Error: ${error.message}"
+                )
+                // Optionally remove from maps if listener is permanently cancelled
+                groupMessageDataListeners.remove(listenerCompositeKey)
+                activeFirebasePathsForListeners.remove(listenerCompositeKey)
+            }
+        }
+        groupMessageDataListeners[listenerCompositeKey] = newListener
+        activeFirebasePathsForListeners[listenerCompositeKey] = groupMessagesRef // Store ref for removal
+        groupMessagesRef.orderByChild("timestamp").limitToLast(50).addValueEventListener(newListener) // Listen to last N messages
+        // Consider .limitToLast(1) if you only ever care about the very last message for the list item display
+        // and handle unread counts separately. However, for notifications, you might need more.
+        // The current ViewModel logic updates based on the latest message in the snapshot.
+    }
+    //endregion
+
+    //region SharedPreferences for Message Timestamps
+    //==============================================================================================
+    private fun saveLastSeenMessageTimestamp(listenerKey: String, timestamp: Long) {
+        messagePrefs.edit().putLong("ts_$listenerKey", timestamp).apply()
+        Log.d(TAG, "Saved last seen timestamp for $listenerKey: $timestamp")
+    }
+
+    private fun getLastSeenMessageTimestamp(listenerKey: String): Long {
+        val timestamp = messagePrefs.getLong("ts_$listenerKey", 0L)
+        Log.d(TAG, "Retrieved last seen timestamp for $listenerKey: $timestamp")
+        return timestamp
+    }
+    //endregion
+
+    // HomeActivity.kt (Continued from clearAllGroupMessageListenersOnly())
+
+    // HomeActivity.kt
+
+// ... (other parts of your HomeActivity class)
+
+    //region Listener Cleanup
+    //==============================================================================================
+    private fun clearAllFirebaseListeners() {
+        Log.d(TAG, "Clearing all Firebase listeners.")
+        // Clear metadata listener
+        channelsMetadataValueListener?.let {
+            // Ensure you have the correct reference for removal.
+            // If groupsMetadataRef is not a class member, you might need to re-obtain it or store it.
+            // For simplicity, assuming 'database' is initialized:
+            val groupsMetadataRef = database.getReference("channels") // Or your actual path
+            groupsMetadataRef.removeEventListener(it)
+            channelsMetadataValueListener = null // Nullify after removal
+            Log.d(TAG, "Removed channels metadata listener.")
+        }
+        // Clear all group message listeners
+        clearAllGroupMessageListenersOnly()
+    }
+
+    private fun clearAllGroupMessageListenersOnly() {
+        Log.d(TAG, "Clearing all ${groupMessageDataListeners.size} group message data listeners.")
+        // Iterate over a copy of keys to avoid ConcurrentModificationException if modification happens elsewhere
+        val keysToRemove = activeFirebasePathsForListeners.keys.toList()
+        keysToRemove.forEach { key ->
+            val listener = groupMessageDataListeners.remove(key)
+            val ref = activeFirebasePathsForListeners.remove(key)
+            listener?.let { ref?.removeEventListener(it) }
+        }
+        // Ensure maps are definitely empty
+        groupMessageDataListeners.clear()
+        activeFirebasePathsForListeners.clear()
+        Log.d(TAG, "All group message data listeners cleared.")
+    }
+    //endregion
+
+// ... (rest of your HomeActivity class, like Menu Handling, Navigation, etc.)
+
+
+
+    //endregion
+
+    //region Menu Handling (Your existing logic, ensure IDs match)
+    //==============================================================================================
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.home_menu, menu)
+        dmNotificationBellMenuItem = menu?.findItem(R.id.action_notifications) // For DM notifications
+        unreadCountViewModel.unreadDirectMessagesCount.value?.let {
+            updateDirectMessageNotificationBadge(it)
+        }
+        return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -95,38 +666,83 @@ class HomeActivity : AppCompatActivity() {
                 performLogout()
                 true
             }
-            R.id.action_notifications -> {
-                Toast.makeText(this, "Notifications icon clicked", Toast.LENGTH_SHORT).show()
-                // Example: Navigate to the Direct Messages tab when notifications are clicked
+            R.id.action_notifications -> { // This is for DMs
+                Toast.makeText(this, "Direct Messages notifications clicked", Toast.LENGTH_SHORT).show()
                 val dmTabIndex = tabTitles.indexOf("Direct Messages")
-                if (dmTabIndex != -1) { // Check if "Direct Messages" tab exists
+                if (dmTabIndex != -1) {
                     binding.viewPagerHome.currentItem = dmTabIndex
                 }
-                // Optionally, clear the unread count when the user views notifications
-                // unreadCountViewModel.clearUnreadDirectMessages()
-                true
-            }
-            R.id.action_search_dms -> {
-                // This action is specific to Direct Messages.
-                // It's often better handled by the DirectMessageFragment itself,
-                // especially if the search UI (e.g., SearchView) is part of that fragment's toolbar contribution.
-                // If it's a global search trigger, you can handle it here.
-                Toast.makeText(this, "Search icon clicked (HomeActivity - consider if fragment should handle)", Toast.LENGTH_SHORT).show()
+                // unreadCountViewModel.clearUnreadDirectMessages() // If you want to clear on bell click
                 true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
-    private fun performLogout() {
-        auth.signOut() // Sign out from Firebase
-        // Clear any local session data if you have more than just SharedPreferences for sessionId
-        getSharedPreferences("session", MODE_PRIVATE).edit().remove("sessionId").apply()
-
-        val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK // Clear back stack
-        startActivity(intent)
-        finish() // Finish HomeActivity
-        Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show()
+    private fun updateDirectMessageNotificationBadge(count: Int) {
+        dmNotificationBellMenuItem?.let { menuItem ->
+            val actionView = menuItem.actionView
+            if (count > 0) {
+                if (actionView == null || actionView.id != R.id.menu_item_notification_badge_root) {
+                    menuItem.setActionView(R.layout.menu_item_notification_badge)
+                }
+                val badgeTextView = menuItem.actionView?.findViewById<TextView>(R.id.notification_badge_text)
+                badgeTextView?.text = if (count > 99) "99+" else count.toString()
+                badgeTextView?.visibility = View.VISIBLE
+            } else {
+                val badgeTextView = menuItem.actionView?.findViewById<TextView>(R.id.notification_badge_text)
+                badgeTextView?.visibility = View.GONE
+                // Optionally set actionView to null if you want to remove it completely when count is 0
+                // menuItem.actionView = null
+            }
+        }
+        Log.d(TAG, "DM Notification badge updated with count: $count")
     }
+    //endregion
+
+    //region Navigation and Logout
+    //==============================================================================================
+    private fun navigateToLogin() {
+        val intent = Intent(this, LoginActivity::class.java) // Ensure LoginActivity is correct
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        finish()
+    }
+
+    private fun performLogout() {
+        Log.d(TAG, "Performing logout.")
+        auth.signOut()
+        clearAllFirebaseListeners() // Important to stop listening to data for the logged-out user
+        messagePrefs.edit().clear().apply()
+        Log.d(TAG, "Cleared broad_group_message_prefs.")
+
+        broadGroupViewModel.clearAllData() // Clear data from the ViewModel
+        unreadCountViewModel.clearAllData() // Assuming UnreadCountViewModel has a similar method
+
+        navigateToLogin()
+    }
+    //endregion
+
+    //region Public methods for Fragments or other Activities
+    //==============================================================================================
+
+    // Called by BroadGroupFragment (or GroupChatActivity via result/intent extra)
+    // when a group chat is opened/viewed.
+    fun groupWasOpened(groupId: String) {
+        Log.d(TAG, "Group $groupId was opened. Marking as read in ViewModel.")
+        broadGroupViewModel.markGroupAsRead(groupId)
+        // No need to directly call fragment here, ViewModel observation will handle UI update.
+    }
+
+    // Used by BroadGroupFragment in its onResume to know which group to mark as read
+    // if HomeActivity was brought to front after a chat was opened.
+    fun getCurrentlyOpenBroadGroupId(): String? {
+        return currentlyOpenBroadGroupId
+    }
+
+    fun clearCurrentlyOpenBroadGroupId() {
+        currentlyOpenBroadGroupId = null
+    }
+
+    //endregion
 }

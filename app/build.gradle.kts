@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.google.gms.google.services)
+    id("androidx.navigation.safeargs.kotlin")
 
 }
 
@@ -69,6 +70,8 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.firebase.messaging)
+    //implementation(libs.firebase.firestore.ktx)
+    // implementation(libs.mediation.test.suite)
     // implementation(libs.identity.jvm) // Review if this is still needed or if it's related to a specific auth method
 
     testImplementation(libs.junit)
@@ -79,4 +82,10 @@ dependencies {
     // Glide (optional for profile images)
     implementation("com.github.bumptech.glide:glide:4.16.0") // Updated to a more recent version
     annotationProcessor("com.github.bumptech.glide:compiler:4.16.0") // Keep Glide versions consistent
+
+    implementation("androidx.fragment:fragment-ktx:1.5.7")
+
+
+    implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
+    implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
 }

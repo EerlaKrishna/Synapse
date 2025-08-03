@@ -21,6 +21,7 @@ firebaseDatabase = "22.0.0"
 firebaseMessagingKtx = "24.1.2"
 firebaseMessaging = "25.0.0"
 
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }

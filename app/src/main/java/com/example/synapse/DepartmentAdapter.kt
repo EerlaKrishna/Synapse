@@ -5,6 +5,10 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.example.synapse.databinding.ItemDepartmentBinding // Assuming you use ViewBinding
 
+
+
+
+
 // DepartmentAdapter now takes a list of Channel objects
 class DepartmentAdapter(
     private val items: List<Channel>, // Changed from List<String>

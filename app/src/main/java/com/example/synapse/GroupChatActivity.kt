@@ -10,13 +10,25 @@ import androidx.core.view.updatePadding
 import com.example.synapse.databinding.ActivityGroupChatBinding
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import kotlin.collections.toMap
 
 class GroupChatActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityGroupChatBinding
-    private lateinit var groupId: String
-    private lateinit var groupName: String
+
+    // Define constants for intent extras within a companion object
+    companion object {
+        const val EXTRA_GROUP_ID = "com.example.synapse.EXTRA_GROUP_ID" // Make sure this is unique
+        const val EXTRA_GROUP_NAME = "com.example.synapse.EXTRA_GROUP_NAME" // Make sure this is unique
+        // Add any other extras you might need, e.g., for specific message types
+        // const val EXTRA_MESSAGE_TYPE = "com.example.synapse.EXTRA_MESSAGE_TYPE"
+    }
+
+
+    private var currentGroupId: String? = null
+    private var currentGroupName: String? = null
 
     private var currentSelectedTabType: String = "improvement_messages" // Default
 
@@ -25,24 +37,37 @@ class GroupChatActivity : AppCompatActivity() {
         binding = ActivityGroupChatBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        groupId = intent.getStringExtra("group_id") ?: "unknown_group"
-        groupName = intent.getStringExtra("group_name") ?: "Unnamed Group"
+// --- SINGLE, CONSISTENT RETRIEVAL ---
+        val receivedGroupId = intent.getStringExtra(EXTRA_GROUP_ID)
+        val receivedGroupName = intent.getStringExtra(EXTRA_GROUP_NAME)
 
-        if (groupId == "unknown_group") {
-            Toast.makeText(this, "Error: Group ID missing.", Toast.LENGTH_LONG).show()
-            finish() // Close activity if group ID is missing
+        Log.i("GroupChatActivity", "Attempting to open chat. Received Group ID from intent: '$receivedGroupId', Name: '$receivedGroupName'")
+
+        if (receivedGroupId.isNullOrBlank()) { // Use isNullOrBlank for safety
+            Toast.makeText(this, "CRITICAL ERROR: Group ID is missing or blank in intent.", Toast.LENGTH_LONG).show()
+            Log.e("GroupChatActivity", "Group ID is null or blank from key $EXTRA_GROUP_ID. Cannot initialize chat. Finishing activity.")
+            finish()
             return
         }
+        // Assign to your member variables
+        this.currentGroupId = receivedGroupId
+        this.currentGroupName = receivedGroupName
 
-        binding.topBarTitle.text = groupName
+        Log.d("GroupChatActivity", "Successfully initialized. Current Group ID: '${this.currentGroupId}', Name: '${this.currentGroupName}'")
 
-        setupTabs()
-        setupSendButton()
-        setupKeyboardInsetsListener() // Call the new method
+        // Use the consistent member variables throughout the activity
+        supportActionBar?.title = this.currentGroupName ?: "Group Chat"
+        binding.topBarTitle.text = this.currentGroupName ?: "Group Chat" // Use currentGroupName
+
+        // Pass the non-nullable currentGroupId to functions that require it
+        // Or ensure functions handle nullable if currentGroupId could be null (though we check above)
+        setupTabs(this.currentGroupId!!) // Pass the validated, non-null ID
+        setupSendButton() // sendMessageToFirebase will use this.currentGroupId
+        setupKeyboardInsetsListener()
     }
 
-    private fun setupTabs() {
-        val adapter = ChatTabAdapter(this, groupId)
+    private fun setupTabs(groupIdForAdapter: String) {
+        val adapter = ChatTabAdapter(this, groupIdForAdapter)
         binding.viewPager.adapter = adapter
 
         TabLayoutMediator(binding.tabLayout, binding.viewPager) { tab, position ->
@@ -75,29 +100,66 @@ class GroupChatActivity : AppCompatActivity() {
     }
 
     private fun sendMessageToFirebase(messageContent: String) {
-        val sharedPreferences = getSharedPreferences("session", MODE_PRIVATE)
-        val sessionId = sharedPreferences.getString("sessionId", null)
 
-        if (sessionId == null) {
-            Log.e("GroupChatActivity", "Session ID not found. Cannot send message.")
-            Toast.makeText(this, "Error: Not logged in. Please restart the app.", Toast.LENGTH_LONG).show()
+        val firebaseUser = FirebaseAuth.getInstance().currentUser
+        if (firebaseUser == null) {
+            Log.e("GroupChatActivity", "Firebase user is null. Cannot send message. User needs to be authenticated with Firebase.")
+            Toast.makeText(this, "Error: Not authenticated with Firebase. Please restart.", Toast.LENGTH_LONG).show()
             return
         }
 
+
+        val currentUserId = firebaseUser.uid
+        val currentUserName = firebaseUser.displayName ?: "Anonymous" // Or however you get the sender's name
+        val messageText = binding.messageInput.text.toString() // The actual message content
+        val currentTime = System.currentTimeMillis()
+        val typeOfMessage = currentSelectedTabType // e.g., "improvement_messages"
+
+       // val sharedPreferences = getSharedPreferences("session", MODE_PRIVATE)
+       // val sessionId = sharedPreferences.getString("sessionId", null)
+//
+//        if (sessionId == null) {
+//            Log.e("GroupChatActivity", "Session ID not found. Cannot send message.")
+//            Toast.makeText(this, "Error: Not logged in. Please restart the app.", Toast.LENGTH_LONG).show()
+//            return
+//        }
+        // Ensure currentGroupId is not null before using, though it should be validated in onCreate
+        val groupIdToSend = this.currentGroupId
+        if (groupIdToSend.isNullOrBlank()) {
+            Log.e("GroupChatActivity", "Cannot send message, Group ID is missing internally (was '${this.currentGroupId}').")
+            Toast.makeText(this, "Error: Group context lost.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+
         val ref = FirebaseDatabase.getInstance().getReference("messages")
-            .child(groupId)
+            .child(groupIdToSend)
             .child(currentSelectedTabType)
 
-        val messageData = Message(sessionId, messageContent, System.currentTimeMillis())
+       // val messageData = Message(sessionId, messageContent, System.currentTimeMillis().toString())
+
+        val messageData = Message(
+            senderId = currentUserId,
+            senderName = currentUserName,
+            text = messageText,
+            timestamp = currentTime,      // Passed as Long
+            messageType = typeOfMessage,
+            sessionId = currentUserId     // Or null if not used for this purpose
+        )
+
+
+        Log.d("GroupChatActivity", "Firebase User UID before setValue: ${FirebaseAuth.getInstance().currentUser?.uid}") // ADD THIS LINE
+        Log.d("GroupChatActivity", "Attempting to send messageData: $messageData to path: ${ref.path.toString()}/<pushId>")
+
 
         ref.push().setValue(messageData)
             .addOnSuccessListener {
                 binding.messageInput.text.clear()
-                Log.d("GroupChatActivity", "$currentSelectedTabType message sent to $groupId.")
+                Log.d("GroupChatActivity", "$currentSelectedTabType message sent to $groupIdToSend.")
             }
             .addOnFailureListener { e ->
-                Log.e("GroupChatActivity", "Failed to send $currentSelectedTabType message to $groupId", e)
-                Toast.makeText(this, "Failed to send: ${e.message}", Toast.LENGTH_SHORT).show()
+                Log.e("GroupChatActivity", "Failed to send $currentSelectedTabType message to $groupIdToSend", e)
+                Toast.makeText(this, "Failed to send message to $groupIdToSend: ${e.message}", Toast.LENGTH_LONG).show()
             }
     }
 

@@ -1,15 +1,17 @@
 package com.example.synapse
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.privacysandbox.tools.core.generator.build
 
 object NotificationHelper {
 
@@ -61,41 +63,36 @@ object NotificationHelper {
         val pendingIntent: PendingIntent = PendingIntent.getActivity(context, notificationId /* requestCode */, intent, pendingIntentFlag)
 
         val builder = NotificationCompat.Builder(context, BROAD_GROUP_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification_icon) // Replace with your notification icon
+            .setSmallIcon(R.drawable.notification_image) // Replace with your notification icon
             .setContentTitle(groupName) // e.g., "Project Phoenix"
             .setContentText("$senderName: $messageSnippet") // e.g., "Alice: New idea for the UI"
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true) // Dismiss notification when tapped
             .setGroup("broad_group_notifications") // Optional: Group notifications
+        val notificationManagerCompat = NotificationManagerCompat.from(context)
 
-        // For summary notification (Android 7.0+)
-        // val summaryNotification = NotificationCompat.Builder(context, BROAD_GROUP_CHANNEL_ID)
-        //     .setContentTitle("New Group Messages")
-        //     .setContentText("You have new messages in broad groups")
-        //     .setSmallIcon(R.drawable.ic_notification_icon)
-        //     .setGroup("broad_group_notifications")
-        //     .setGroupSummary(true)
-        //     .build()
+        // Check if notifications are enabled for the app.
+        // This covers both runtime permission on API 33+ and user settings on all versions.
+        if (notificationManagerCompat.areNotificationsEnabled()) {
+            // The lint warning is about this call.
+            // By checking areNotificationsEnabled() first, we address the spirit of the warning.
+            // For API 33+, if POST_NOTIFICATIONS is not granted, areNotificationsEnabled() will be false.
+            notificationManagerCompat.notify(notificationId, builder.build())
+            Log.d("NotificationHelper", "Notification shown for group $groupName, id $notificationId")
 
-        with(NotificationManagerCompat.from(context)) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (this.areNotificationsEnabled()) { // Check if notifications are enabled by user
-                    // TODO: Request POST_NOTIFICATIONS permission if not granted
-                    notify(notificationId, builder.build())
-                    // notify(SUMMARY_ID_BROAD_GROUP, summaryNotification) // If using summary
-                } else {
-                    Log.w("NotificationHelper", "Notifications are disabled by the user.")
-                    // Optionally inform the user or guide them to settings
-                }
-            } else {
-                notify(notificationId, builder.build())
-                // notify(SUMMARY_ID_BROAD_GROUP, summaryNotification) // If using summary
-            }
+            // If using summary notification:
+            // val summaryNotification = NotificationCompat.Builder(context, BROAD_GROUP_CHANNEL_ID)
+            //     // ... build summary ...
+            //     .build()
+            // notificationManagerCompat.notify(SUMMARY_ID_BROAD_GROUP, summaryNotification)
+
+        } else {
+            // This log is important. It tells you why a notification might not appear.
+            Log.w("NotificationHelper", "Notifications are disabled for this app (either permission denied on API 33+ or disabled in settings).")
+            // Optionally, you could have a mechanism here to inform the user more directly,
+            // but usually, the place that *requests* the permission (HomeActivity) is better for that.
         }
-        Log.d("NotificationHelper", "Notification shown for group $groupName, id $notificationId")
     }
-
-    // You'll need a unique ID for the summary if you use it
     // private const val SUMMARY_ID_BROAD_GROUP = 0
 }
