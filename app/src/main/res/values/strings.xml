@@ -12,4 +12,12 @@
     <string name="no_messages_yet">No messages yet</string>
     <string name="tab_improvement">Improvement</string>
     <string name="tab_drawback">Drawback</string>
+
+    <string name="hint_type_a_message">Type a message</string>
+    <string name="button_send">SEND</string>
+
+    <!-- ... other strings ... -->
+    <string name="error_user_not_identified">User not identified. Please log in again.</string>
+    <string name="message_empty_cannot_send">Message cannot be empty.</string>
+    <string name="button_send_description">Send message</string>
 </resources>

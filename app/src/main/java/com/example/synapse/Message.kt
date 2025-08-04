@@ -1,26 +1,18 @@
 package com.example.synapse
 
-import com.google.firebase.database.Exclude
+import com.google.firebase.database.Exclude // Optional: if you have fields not in Firebase
+import com.google.firebase.database.IgnoreExtraProperties // Good practice
 
-// Or your actual package
-
-// Ensure this file is named Message.kt or similar
+@IgnoreExtraProperties // Ignores properties in snapshot not in this class
 data class Message(
-    val senderId: String? = null,
-    val senderName: String? = null,
-    val text: String? = null,       // This is likely the field you intend to use for content
-    val timestamp: Long = 0L,
-    val messageType: String? = null, // e.g., "improvement", "drawback", "text", "image"
-    val sessionId: String? = null    // You mentioned not displaying this, but it might be in your class
+    @get:Exclude var id: String? = null, // Exclude from being written to Firebase as a field, it's the node key
+    var senderId: String? = null,
+    var senderName: String? = null,
+    var text: String? = null,
+    var timestamp: Long? = null,
+    var messageType: String? = null // Optional: if you store it within the message object itself
     // Add any other fields like imageUrl, etc.
 ) {
-    // Add a no-argument constructor if you're using Firebase Realtime Database
-    // and want to deserialize directly to this class without issues if some fields are missing
-    constructor() : this(null, null, null, 0L, null, null)
-
-    // We need a way to associate the Firebase key/ID with this message object
-    // if it's not part of the primary constructor. A common way is an additional property.
-    @get:Exclude // For Firebase - so it doesn't try to serialize this 'id' back to the database
-    @set:Exclude // For Firebase - so it doesn't try to deserialize 'id' from the database document
-    var id: String? = null // This will hold the document ID from Firestore or key from RTDB
+    // No-argument constructor is required by Firebase for deserialization
+    constructor() : this(null, null, null, null, null, null)
 }

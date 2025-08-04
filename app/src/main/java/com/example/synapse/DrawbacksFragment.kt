@@ -7,7 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.synapse.databinding.FragmentDrawbacksBinding // Create this layout
+import com.example.synapse.databinding.FragmentDrawbacksBinding // Ensure this binding class is correct
+import com.google.firebase.auth.FirebaseAuth // For currentUserId
 import com.google.firebase.database.*
 
 class DrawbacksFragment : Fragment() {
@@ -15,9 +16,10 @@ class DrawbacksFragment : Fragment() {
     private var _binding: FragmentDrawbacksBinding? = null
     private val binding get() = _binding!!
 
-    private lateinit var messageAdapter: MessageAdapter
-    private val drawbackMessagesList = mutableListOf<Message>()
+    private lateinit var messageAdapter: MessageAdapter // Using the new ListAdapter version
+    // private val drawbackMessagesList = mutableListOf<Message>() // No longer needed here
     private var groupId: String? = null
+    private var currentUserId: String? = null // To store the current user's ID
 
     private lateinit var dbRefDrawbacks: DatabaseReference
     private lateinit var valueEventListener: ValueEventListener
@@ -39,6 +41,11 @@ class DrawbacksFragment : Fragment() {
         arguments?.let {
             groupId = it.getString(ARG_GROUP_ID)
         }
+        // Get current user ID
+        currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+        if (currentUserId == null) {
+            Log.e("DrawbacksFragment", "Current User ID is null. Chat functionality will be limited.")
+        }
     }
 
     override fun onCreateView(
@@ -52,7 +59,15 @@ class DrawbacksFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        setupRecyclerView()
+        if (currentUserId == null) {
+            binding.emptyViewTextDrawbacks.text = "Error: You must be logged in to view messages."
+            binding.emptyViewTextDrawbacks.visibility = View.VISIBLE
+            binding.progressBarDrawbacks.visibility = View.GONE
+            binding.recyclerViewDrawbacks.visibility = View.GONE
+            return
+        }
+
+        setupRecyclerView() // Call setupRecyclerView after currentUserId is confirmed
 
         if (groupId == null) {
             Log.e("DrawbacksFragment", "Group ID is null. Cannot fetch messages.")
@@ -64,19 +79,29 @@ class DrawbacksFragment : Fragment() {
 
         dbRefDrawbacks = FirebaseDatabase.getInstance().getReference("messages")
             .child(groupId!!)
-            .child("drawback_messages") // Key difference
+            .child("drawback_messages") // Key difference for drawbacks
 
         fetchDrawbackMessages()
     }
 
     private fun setupRecyclerView() {
-        messageAdapter = MessageAdapter(drawbackMessagesList)
-        binding.recyclerViewDrawbacks.apply {
-            layoutManager = LinearLayoutManager(requireContext()).apply {
-                reverseLayout = true
-                stackFromEnd = true
+        currentUserId?.let { uid ->
+            messageAdapter = MessageAdapter(uid) // Pass current user ID
+            binding.recyclerViewDrawbacks.apply {
+                layoutManager = LinearLayoutManager(requireContext()).apply {
+                    // For chat-like behavior where new messages appear at the bottom
+                    // and the list scrolls to show them:
+                    stackFromEnd = true
+                    // reverseLayout = false; // (default) if data is oldest to newest
+                    // Set reverseLayout = true if your data source is newest to oldest
+                    // and you want to display it correctly with stackFromEnd.
+                }
+                adapter = messageAdapter
             }
-            adapter = messageAdapter
+        } ?: run {
+            Log.e("DrawbacksFragment", "Cannot setup RecyclerView: Current User ID is null.")
+            binding.emptyViewTextDrawbacks.text = "Error: User session not found."
+            binding.emptyViewTextDrawbacks.visibility = View.VISIBLE
         }
     }
 
@@ -87,13 +112,16 @@ class DrawbacksFragment : Fragment() {
         valueEventListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 binding.progressBarDrawbacks.visibility = View.GONE
-                drawbackMessagesList.clear()
+                val messages = mutableListOf<Message>() // Create a new list for each update
                 if (snapshot.exists()) {
                     for (messageSnapshot in snapshot.children) {
                         val message = messageSnapshot.getValue(Message::class.java)
-                        message?.let { drawbackMessagesList.add(it) }
+                        // IMPORTANT: Set the message ID from the Firebase key
+                        message?.id = messageSnapshot.key
+                        message?.let { messages.add(it) }
                     }
-                    if (drawbackMessagesList.isEmpty()) {
+
+                    if (messages.isEmpty()) {
                         binding.emptyViewTextDrawbacks.text = "No drawbacks submitted yet."
                         binding.emptyViewTextDrawbacks.visibility = View.VISIBLE
                     } else {
@@ -103,11 +131,23 @@ class DrawbacksFragment : Fragment() {
                     binding.emptyViewTextDrawbacks.text = "No drawbacks submitted yet."
                     binding.emptyViewTextDrawbacks.visibility = View.VISIBLE
                 }
-                messageAdapter.updateMessages(drawbackMessagesList)
-                if (drawbackMessagesList.isNotEmpty() && (binding.recyclerViewDrawbacks.layoutManager as LinearLayoutManager).reverseLayout) {
-                    binding.recyclerViewDrawbacks.scrollToPosition(0)
-                } else if (drawbackMessagesList.isNotEmpty()){
-                    binding.recyclerViewDrawbacks.scrollToPosition(drawbackMessagesList.size - 1)
+
+                // Submit the new list to the ListAdapter
+                if (::messageAdapter.isInitialized) { // Check if adapter is initialized
+                    // Sort by timestamp before submitting to ensure order
+                    messageAdapter.submitList(messages.sortedBy { it.timestamp })
+                }
+
+                // Scroll to the relevant position
+                val layoutManager = binding.recyclerViewDrawbacks.layoutManager as LinearLayoutManager
+                if (messages.isNotEmpty()) {
+                    if (layoutManager.stackFromEnd) {
+                        binding.recyclerViewDrawbacks.scrollToPosition(messages.size - 1)
+                    } else if (layoutManager.reverseLayout) {
+                        binding.recyclerViewDrawbacks.scrollToPosition(0)
+                    } else {
+                        binding.recyclerViewDrawbacks.scrollToPosition(messages.size - 1)
+                    }
                 }
             }
 
@@ -118,6 +158,7 @@ class DrawbacksFragment : Fragment() {
                 binding.emptyViewTextDrawbacks.visibility = View.VISIBLE
             }
         }
+        // Fetch messages ordered by timestamp.
         dbRefDrawbacks.orderByChild("timestamp").addValueEventListener(valueEventListener)
     }
 

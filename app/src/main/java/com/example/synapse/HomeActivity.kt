@@ -17,6 +17,7 @@ import androidx.activity.viewModels // For normal ViewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.children
 import androidx.lifecycle.ViewModelProvider // Required for activity-scoped ViewModel
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
@@ -80,6 +81,10 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         private const val TAG = "HomeActivity"
         // To pass to GroupChatActivity and get back which group was opened
         const val EXTRA_OPENED_GROUP_ID = "extra_opened_group_id"
+        const val EXTRA_TARGET_GROUP_ID = "com.example.synapse.TARGET_GROUP_ID"
+        const val EXTRA_TARGET_GROUP_NAME = "com.example.synapse.TARGET_GROUP_NAME"
+        const val EXTRA_LAUNCH_SOURCE = "com.example.synapse.LAUNCH_SOURCE"
+
     }
 
 
@@ -144,10 +149,118 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         // Fetch initial group list and then setup message listeners
         fetchBroadGroupMetadataAndSetupListeners()
 
+        handleNotificationIntent(intent)
+
         Log.d(TAG, "onCreate completed.")
     }
 
     // HomeActivity.kt (Continued from onResume())
+
+
+    override fun onNewIntent(intent: Intent) { // Added 'override'
+        super.onNewIntent(intent)
+        // Handle intent from notification if the activity is already running
+        intent?.let {
+            setIntent(it) // Update the activity's intent to the new one
+            handleNotificationIntent(it)
+            Log.d(TAG, "onNewIntent: Handled intent from notification.")
+        }
+    }
+
+    private fun handleNotificationIntent(intent: Intent) {
+        val launchSource = intent.getStringExtra(EXTRA_LAUNCH_SOURCE)
+        Log.d(TAG, "handleNotificationIntent: launchSource = $launchSource")
+
+        if (launchSource == "notification_broad_group") {
+            val groupId = intent.getStringExtra(EXTRA_TARGET_GROUP_ID)
+            val groupName = intent.getStringExtra(EXTRA_TARGET_GROUP_NAME)
+            // val targetMessageType = intent.getStringExtra("TARGET_MESSAGE_TYPE") // If you added this extra
+
+            Log.d(TAG, "Notification intent received: GroupID='$groupId', GroupName='$groupName'")
+
+            if (groupId != null && groupName != null) {
+                if (navController == null) {
+                    Log.e(TAG, "NavController is null in handleNotificationIntent. Cannot navigate.")
+                    Toast.makeText(this, "Error opening chat. NavController not ready.", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                // Ensure the user is logged in before attempting navigation
+                if (auth.currentUser == null) {
+                    Log.w(TAG, "User not logged in. Cannot navigate from notification. Redirecting to login.")
+                    navigateToLogin() // Or show a message
+                    return
+                }
+
+                // Navigate to ChatRoomFragment using NavController
+                // Make sure your navigation graph has an action from HomeFragment (or your start destination)
+                // to ChatRoomFragment and that ChatRoomFragment accepts groupId and groupName as arguments.
+                try {
+                    // Assuming your NavGraph has ChatRoomFragment defined with arguments:
+                    // <fragment android:id="@+id/chatRoomFragment" ... >
+                    //     <argument android:name="groupId" app:argType="string" />
+                    //     <argument android:name="groupName" app:argType="string" />
+                    // </fragment>
+                    // And an action from your current location in HomeActivity (e.g., a fragment hosted by it)
+                    // to this chatRoomFragment.
+                    // If HomeActivity's NavHost starts with a different fragment, navigate from there.
+                    // For simplicity, let's assume a global action or direct navigation if possible.
+
+                    // Option 1: If HomeActivity itself is a NavHost or can directly navigate
+                    // This requires ChatRoomFragment to be a destination in the graph hosted by HomeActivity's NavController
+                   // val action = HomeFragmentDirections.actionHomeFragmentToChatRoomFragment(groupId, groupName)
+                    // Replace 'HomeFragmentDirections' with the Directions class generated from the fragment
+                    // that is currently visible in your HomeActivity's NavHost when a notification might arrive,
+                    // or a global action if you have one defined.
+
+                    // A more robust way if you don't know the current destination or want a global-like navigation:
+                    // Check if the current destination is NOT already the chat room for this group
+                    val currentDestinationId = navController?.currentDestination?.id
+                    var shouldNavigate = true
+                    if (currentDestinationId == R.id.chatRoomFragment) {
+                        // If already in a chat room, check if it's the *same* chat room
+                        val currentArgs = navController?.currentBackStackEntry?.arguments
+                        val currentGroupId = currentArgs?.getString("groupId") // Assuming "groupId" is the arg name
+                        if (currentGroupId == groupId) {
+                            Log.d(TAG, "Already in the target chat room ($groupId). No navigation needed.")
+                            shouldNavigate = false
+                        } else {
+                            Log.d(TAG, "In a different chat room. Navigating to target chat room ($groupId).")
+                            // May need to pop the current chat room first if you don't want them stacked
+                            // navController?.popBackStack() // Optional: depends on desired back stack behavior
+                        }
+                    }
+
+                    if (shouldNavigate) {
+                        // Create bundle for arguments
+                        val bundle = Bundle().apply {
+                            putString("groupId", groupId)
+                            putString("groupName", groupName)
+                            // putString("initialMessageType", targetMessageType) // If you pass this
+                        }
+                        // Ensure R.id.chatRoomFragment is the correct ID from your nav_graph.xml
+                        navController?.navigate(R.id.chatRoomFragment, bundle)
+                        Log.i(TAG, "Navigated to ChatRoomFragment for group: $groupName (ID: $groupId)")
+                    }
+
+                } catch (e: Exception) {
+                    Log.e(TAG, "Navigation to ChatRoomFragment failed from notification: ${e.message}", e)
+                    Toast.makeText(this, "Could not open chat: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
+
+                // Important: Remove the extras so they aren't processed again on configuration change
+                // or if the activity is brought to front without a new intent.
+                intent.removeExtra(EXTRA_LAUNCH_SOURCE)
+                intent.removeExtra(EXTRA_TARGET_GROUP_ID)
+                intent.removeExtra(EXTRA_TARGET_GROUP_NAME)
+                // intent.removeExtra("TARGET_MESSAGE_TYPE")
+            } else {
+                Log.w(TAG, "Notification intent missing groupId or groupName.")
+            }
+        }
+    }
+
+
 
     override fun onResume() {
         super.onResume()
@@ -459,43 +572,54 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
                 var latestMessageForUI: Message? = null
                 var latestMessageSenderNameForUI: String? = null
 
+                // ... inside onDataChange ...
                 snapshot.children.forEach { messageSnapshot ->
-                    val message = messageSnapshot.getValue(Message::class.java) // Ensure you have Message.kt data class
+                    val message = messageSnapshot.getValue(Message::class.java)
                     val messageId = messageSnapshot.key
 
                     if (message != null && messageId != null) {
-                        if (message.timestamp > latestTimestampInThisSnapshot) {
-                            latestTimestampInThisSnapshot = message.timestamp
-                            latestMessageForUI = message
-                            latestMessageSenderNameForUI = message.senderName // Assuming Message has senderName
+                        val currentMessageTimestamp = message.timestamp // Keep as Long? initially
+
+                        // Process for latest message for UI
+                        if (currentMessageTimestamp != null) { // Check for null before comparison and assignment
+                            if (currentMessageTimestamp > latestTimestampInThisSnapshot) {
+                                latestTimestampInThisSnapshot = currentMessageTimestamp // Safe: currentMessageTimestamp is smart-cast to Long
+                                latestMessageForUI = message
+                                latestMessageSenderNameForUI = message.senderName
+                            }
                         }
 
                         // --- START DEBUG LOGS FOR MESSAGE PROCESSING ---
+                        // Use currentMessageTimestamp (which might be null) or message.timestamp directly for logging
                         Log.d(TAG, "HomeActivity: Received message for group '$groupNameForPath' (ID: $groupIdForMapping). Text: '${message.text}', Sender: '${message.senderName}', Timestamp: ${message.timestamp}")
                         // --- END DEBUG LOGS FOR MESSAGE PROCESSING ---
 
-
-                        // System Notification Logic (only for messages newer than last seen by notifications)
-                        if (message.timestamp > lastSeenTimestampForNotifications && initialDataProcessed) {
-                            if (message.senderId != currentUserUid) {
-                                newMessagesForNotificationFoundInThisSnapshot = true
-                                Log.i(
-                                    TAG,
-                                    "NEW message for NOTIFICATION in group (name: $groupNameForPath, type: $messageTypePath): ${message.text}"
-                                )
-                                val notificationId = (listenerCompositeKey.hashCode() + message.timestamp.hashCode()) % Int.MAX_VALUE
-                                NotificationHelper.showBroadGroupMessageNotification(
-                                    applicationContext,
-                                    groupIdForMapping,      // Pass ID for intent extras
-                                    groupNameForPath,       // Pass Name for display in notification
-                                    message.senderName ?: "Someone",
-                                    message.text ?: "New message received",
-                                    notificationId
-                                )
+                        // System Notification Logic
+                        if (currentMessageTimestamp != null) { // Check for null before comparison and use
+                            if (currentMessageTimestamp > lastSeenTimestampForNotifications && initialDataProcessed) {
+                                if (message.senderId != currentUserUid) {
+                                    newMessagesForNotificationFoundInThisSnapshot = true
+                                    Log.i(
+                                        TAG,
+                                        "NEW message for NOTIFICATION in group (name: $groupNameForPath, type: $messageTypePath): ${message.text}"
+                                    )
+                                    // currentMessageTimestamp is smart-cast to Long here
+                                    val notificationId = (listenerCompositeKey.hashCode() + currentMessageTimestamp.hashCode()) % Int.MAX_VALUE
+                                    NotificationHelper.showBroadGroupMessageNotification(
+                                        applicationContext,
+                                        groupIdForMapping,
+                                        groupNameForPath,
+                                        message.senderName ?: "Someone",
+                                        message.text ?: "New message received",
+                                        notificationId
+                                    )
+                                }
                             }
                         }
                     }
                 } // End of snapshot.children.forEach
+
+// ... (previous code from onDataChange) ...
 
                 // Update ViewModel with the latest message from this snapshot
                 latestMessageForUI?.let { msg ->
@@ -505,9 +629,13 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
 
                     broadGroupViewModel.updateGroupWithMessage(
                         groupId = groupIdForMapping,
-                        groupName = groupDataCache[groupIdForMapping]?.name,
+                        groupName = groupDataCache[groupIdForMapping]?.name, // Get current name from cache
                         messageText = msg.text,
-                        messageTimestamp = msg.timestamp,
+                        // Provide a default (e.g., 0L or current time if appropriate) if msg.timestamp can be null
+                        // and your ViewModel expects a non-null Long.
+                        // If ViewModel can handle Long?, then msg.timestamp is fine.
+                        // Assuming ViewModel's updateGroupWithMessage expects a non-null Long for timestamp:
+                        messageTimestamp = msg.timestamp ?: 0L, // Or handle null appropriately
                         senderName = latestMessageSenderNameForUI,
                         senderId = msg.senderId
                     )
@@ -516,6 +644,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
                     Log.d(TAG, "HomeActivity: Called broadGroupViewModel.updateGroupWithMessage for group '$groupNameForPath' (ID: $groupIdForMapping)")
                     // --- END DEBUG LOGS AFTER VIEWMODEL UPDATE ---
                 }
+
 
 
                 if (newMessagesForNotificationFoundInThisSnapshot && latestTimestampInThisSnapshot > lastSeenTimestampForNotifications) {

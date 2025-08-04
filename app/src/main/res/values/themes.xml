@@ -1,9 +1,37 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
+
     <!-- Base application theme. -->
     <style name="Base.Theme.Synapse" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- Material 3 color palette -->
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/cognizant_blue</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/cognizant_blue_light_container</item>
+        <item name="colorOnPrimaryContainer">@color/cognizant_blue_dark</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/cognizant_blue_accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondaryContainer">@color/cognizant_blue_accent_light_container</item>
+        <item name="colorOnSecondaryContainer">@color/cognizant_blue_dark</item>
+
+        <!-- Error color -->
+        <item name="colorError">@color/red</item>
+        <item name="colorOnError">@color/white</item>
+        <item name="colorErrorContainer">@color/red_light_container</item>
+        <item name="colorOnErrorContainer">@color/red_dark</item>
+
+        <!-- Neutral colors for backgrounds and surfaces -->
+        <item name="android:colorBackground">@color/white</item>
+        <item name="colorOnBackground">@color/cognizant_text_gray</item>
+        <item name="colorSurface">@color/white</item>
+        <item name="colorOnSurface">@color/cognizant_text_gray</item>
+        <item name="colorSurfaceVariant">@color/cognizant_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/cognizant_text_gray_medium</item>
+        <item name="colorOutline">@color/cognizant_outline_gray</item>
     </style>
 
     <style name="Theme.Synapse" parent="Base.Theme.Synapse" />
+
+
 </resources>

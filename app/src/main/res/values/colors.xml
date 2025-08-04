@@ -12,4 +12,37 @@
     <color name="purple_700">#FF3700B3</color>
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
+    <color name="chat_bubble_received_background">#F1F1F1</color>
+    <color name="chat_bubble_sent_background">#0077C8</color>
+    <color name="chat_sender_name_received">#0D47A1</color>
+    <color name="chat_timestamp_received">#757575</color>
+    <color name="chat_timestamp_sent">#FFFFFF</color>
+
+
+
+
+
+
+
+    <color name="red_dark">#A80F0F</color>
+    <color name="red_light_container">#FDECEA</color>
+
+    <!-- Cognizant Inspired Colors -->
+    <color name="cognizant_blue">#0077C8</color>
+    <color name="cognizant_blue_dark">#005A9C</color>
+    <color name="cognizant_text_gray">#4A4A4A</color>
+    <color name="cognizant_text_gray_medium">#6E6E6E</color>
+
+    <!-- Material 3 Theme Placeholder Colors -->
+    <color name="cognizant_blue_light_container">#D1E6F9</color>
+    <color name="cognizant_blue_accent">#00AEEF</color>
+    <color name="cognizant_blue_accent_light_container">#CCF0FF</color>
+    <color name="cognizant_surface_variant">#E0E0E0</color>
+    <color name="cognizant_outline_gray">#BDBDBD</color>
+
+    <!-- Splash Screen Specific Colors -->
+    <color name="synapse_splash_background">#FFFFFF</color> <!-- Light theme background (White) -->
+    <color name="synapse_splash_icon_text_color">#0077C8</color> <!-- Synapse Blue for icon/text (can be used for tint if needed) -->
+    <color name="synapse_splash_background_night">#1C1B1F</color> <!-- Dark theme background for splash -->
+
 </resources>

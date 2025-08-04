@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+    <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:clipToPadding="false">
+
+        <LinearLayout
+            android:id="@+id/message_bubble_layout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:orientation="vertical"
+            android:background="@drawable/chat_bubble_sent"
+            android:padding="8dp"
+            android:layout_marginStart="60dp">
+
+            <TextView
+                android:id="@+id/textView_message_sender"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="You" />
+
+            <TextView
+                android:id="@+id/textView_message_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="@android:color/white"
+                tools:text="This is a message sent by the current user. It should be on the right." />
+
+            <TextView
+                android:id="@+id/textView_message_timestamp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/chat_timestamp_sent"
+                tools:text="10:00 AM" />
+        </LinearLayout>
+    </RelativeLayout>
