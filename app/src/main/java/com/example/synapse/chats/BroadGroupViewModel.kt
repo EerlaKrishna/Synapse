@@ -10,6 +10,7 @@ import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
 import kotlinx.coroutines.launch // Keep this if other methods use it
@@ -32,6 +33,10 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
     private val channelsRef = database.child("channels") // e.g., "channels" or "groups"
     private var channelsValueEventListener: ValueEventListener? = null
 
+    private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>>()
+    val groupCreatedEvent: LiveData<Pair<String, String?>> = _groupCreatedEvent
+
+
     // --- Existing ChatListItem related properties and functions ---
     // These manage a separate list (_chatList) with detailed unread count logic.
     // We will need to decide how/if to merge this with the `_groups` LiveData.
@@ -46,6 +51,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     init {
+        Log.d(TAG, "VM: ViewModel initialized. Attaching listeners.")
         attachChannelsListener() // Start listening for real-time group updates for the main list
         // If you still need to initialize `currentChatItemsMap` for other purposes,
         // you might call a method here or it might be populated by other events.
@@ -125,6 +131,60 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                 _error.postValue("Failed to load group data: ${error.message}")
             }
         })
+    }
+
+    // Add this function inside BroadGroupViewModel class
+
+    // Inside your BroadGroupViewModel class:
+
+// Make sure this LiveData is defined if you want to signal creation success to the UI
+// private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>>()
+// val groupCreatedEvent: LiveData<Pair<String, String?>> = _groupCreatedEvent
+
+    fun createNewGroup(groupName: String, creatorId: String, description: String? = null) {
+        Log.d(TAG, "VM: createNewGroup called. Name: $groupName, Creator: $creatorId")
+
+        // IMPORTANT: Use the SAME Firebase reference that your listener is attached to.
+        // This should be 'channelsRef' if that's what 'attachChannelsListener' uses.
+        val refForNewGroup = channelsRef // Or 'groupsRef' if you renamed it consistently
+
+        val newGroupId = refForNewGroup.push().key
+
+        if (newGroupId == null) {
+            _error.postValue("Couldn't get a unique ID for the new group.")
+            Log.e(TAG, "VM: createNewGroup - Firebase push key was null.")
+            return
+        }
+
+        // Creator is the first member
+        val initialMembers = listOf(creatorId)
+
+        val groupData = mapOf(
+            "id" to newGroupId,
+            "name" to groupName,
+            "description" to description, // This will be null in Firebase if description is null
+            "memberIds" to listOf(creatorId), // Add creator as the first member
+            "lastMessage" to null, // Explicitly null for a new group
+            "unreadCount" to 0,
+            "createdBy" to creatorId,
+            "timestamp" to ServerValue.TIMESTAMP// Use Firebase ServerValue.TIMESTAMP
+        )
+
+        // Save the new group object under the generated key
+        channelsRef.child(newGroupId).setValue(groupData)
+            .addOnSuccessListener {
+                Log.i(TAG, "VM: New group '$groupName' successfully created in Firebase with ID: $newGroupId")
+                // Your existing 'attachChannelsListener' (or 'attachGroupsListener')
+                // should automatically detect this new group and update the '_groups' LiveData.
+
+                // Optionally, post an event if the UI needs to react immediately
+                // (e.g., navigate to the new group, clear input fields).
+                // _groupCreatedEvent.postValue(Pair(newGroupId, groupName))
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "VM: Failed to create new group '$groupName' in Firebase.", e)
+                _error.postValue("Failed to create group: ${e.message}")
+            }
     }
 
 

@@ -9,9 +9,13 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.observe
 
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.synapse.chats.BroadGroupViewModel
+import com.example.synapse.chats.CreateGroupDialogFragment
 import com.example.synapse.chats.Group
 import com.example.synapse.chats.GroupListAdapter // Your adapter
 import com.example.synapse.databinding.FragmentBroadGroupBinding
@@ -35,7 +39,7 @@ class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it
     private val broadGroupViewModel: BroadGroupViewModel by activityViewModels()
     private lateinit var groupListAdapter: GroupListAdapter
 
-    companion object {
+       companion object {
         private const val TAG = "BroadGroupFragment"
     }
 
@@ -53,6 +57,14 @@ class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it
         Log.d(TAG, "onViewCreated called")
         setupRecyclerView() // Call setupRecyclerView
         observeViewModel()
+        setupFab()
+    }
+    private fun setupFab() {
+        binding.fabAddNewGroup.setOnClickListener {
+            Log.d(TAG, "FAB clicked to add new group.")
+            // Show the CreateGroupDialogFragment
+            CreateGroupDialogFragment().show(parentFragmentManager, "CreateGroupDialog")
+        }
     }
 
     fun markGroupAsReadInList(groupId: String) {
@@ -145,6 +157,16 @@ class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it
                 // broadGroupViewModel.clearError() // If you implement this
             }
         }
+        // Observe group creation events (optional, for UI feedback like a Toast or navigation)
+        broadGroupViewModel.groupCreatedEvent.observe(viewLifecycleOwner) { eventData ->
+            // eventData is Pair<String, String?> (groupId, groupName)
+            val groupName = eventData.second
+            Log.i(TAG, "Observed groupCreatedEvent for group: $groupName (ID: ${eventData.first})")
+            Toast.makeText(context, "Group '$groupName' created successfully!", Toast.LENGTH_SHORT).show()
+            // You could potentially navigate to the newly created group here if desired
+            // navigationListener?.onNavigateToChatRoom(eventData.first, eventData.second)
+        }
+        Log.d(TAG, "ViewModel observers set up.")
     }
 
     // If BroadGroupFragment was implementing OnGroupClickListener,

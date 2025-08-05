@@ -16,6 +16,11 @@
     <string name="hint_type_a_message">Type a message</string>
     <string name="button_send">SEND</string>
 
+
+
+        <string name="desc_add_new_group">Create a new group</string>
+
+
     <!-- ... other strings ... -->
     <string name="error_user_not_identified">User not identified. Please log in again.</string>
     <string name="message_empty_cannot_send">Message cannot be empty.</string>

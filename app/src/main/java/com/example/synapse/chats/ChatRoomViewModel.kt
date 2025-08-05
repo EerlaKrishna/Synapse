@@ -33,26 +33,26 @@ class ChatRoomViewModel : ViewModel() {
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
 
-    // --- THIS IS THE MISSING PART ---
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
-    // --- END OF MISSING PART ---
 
     companion object {
         private const val TAG = "ChatRoomViewModel"
         private const val MESSAGES_NODE = "messages"
         private const val CHANNELS_NODE = "channels"
+        // Define the anonymous sender name
+        private const val ANONYMOUS_SENDER_NAME = "User" // Or "Anonymous", or any placeholder
     }
 
     fun loadMessages(groupId: String, messageType: String) {
         if (currentUserId == null) {
             _error.value = "User not logged in. Cannot load messages."
             Log.e(TAG, "loadMessages: Current user is null for groupId: $groupId, messageType: $messageType")
-            _isLoading.value = false // Also set loading to false here
+            _isLoading.value = false
             return
         }
         Log.d(TAG, "Loading messages for groupId: $groupId, messageType: $messageType")
-        _isLoading.value = true // Set loading state TO TRUE before starting
+        _isLoading.value = true
 
         clearMessagesListener()
 
@@ -78,19 +78,21 @@ class ChatRoomViewModel : ViewModel() {
                 }
                 _messages.value = messageList.sortedBy { it.timestamp }
                 Log.d(TAG, "Messages loaded for $currentPathStringForListener: ${messageList.size}")
-                _isLoading.value = false // Set loading state TO FALSE after loading
+                _isLoading.value = false
             }
 
             override fun onCancelled(databaseError: DatabaseError) {
                 Log.w(TAG, "loadMessages:onCancelled for $currentPathStringForListener", databaseError.toException())
                 _error.value = "Failed to load messages: ${databaseError.message}"
-                _isLoading.value = false // Set loading state TO FALSE on error
+                _isLoading.value = false
             }
         }
         currentGroupMessagesTypeRef?.orderByChild("timestamp")?.addValueEventListener(messagesValueEventListener!!)
     }
 
+    // The senderName parameter is still accepted but will be overridden internally
     fun sendMessage(groupId: String, messageType: String, text: String, senderName: String) {
+        Log.d(TAG, "sendMessage CALLED with: groupId='$groupId', messageType='$messageType', text='$text', senderName (original)='$senderName'")
         if (currentUserId == null) {
             _error.value = "Cannot send message: User not logged in."
             Log.e(TAG, "sendMessage: Current user is null for groupId $groupId.")
@@ -101,6 +103,25 @@ class ChatRoomViewModel : ViewModel() {
         if (trimmedText.isBlank()) {
             Log.w(TAG, "Attempted to send blank message to groupId $groupId, type $messageType.")
             _error.value = "Message cannot be empty."
+            return
+        }
+
+        // The original senderName parameter is no longer used for the actual sender name in the database.
+        // We use ANONYMOUS_SENDER_NAME instead.
+        // The check for senderName.isBlank() might still be useful if you want to ensure the calling code
+        // is at least attempting to provide some name, even if it's not used for DB storage.
+        // However, for strict anonymization, this check on the input `senderName` becomes less critical
+        // as we are overriding it.
+        if (senderName.isBlank()) {
+            Log.w(TAG, "sendMessage: Original senderName parameter was blank for groupId $groupId, type $messageType. This will be overridden by ANONYMOUS_SENDER_NAME.")
+            // You could choose to return an error here if you still expect a non-blank original senderName for some other logic
+            // _error.value = "Original sender name cannot be empty."
+            // return
+        }
+
+        if (messageType.isBlank()) {
+            Log.w(TAG, "Attempted to send message with blank messageType to groupId $groupId.")
+            _error.value = "Message type cannot be empty."
             return
         }
 
@@ -117,7 +138,7 @@ class ChatRoomViewModel : ViewModel() {
 
         val messageToSend = Message(
             senderId = currentUserId,
-            senderName = senderName,
+            senderName = ANONYMOUS_SENDER_NAME, // <--- ANONYMIZATION APPLIED HERE
             text = trimmedText,
             timestamp = currentTimestamp,
             messageType = messageType
@@ -125,7 +146,7 @@ class ChatRoomViewModel : ViewModel() {
 
         val lastMessageDataForChannel = hashMapOf(
             "text" to trimmedText,
-            "senderName" to senderName,
+            "senderName" to ANONYMOUS_SENDER_NAME, // <--- ANONYMIZATION APPLIED HERE
             "timestamp" to currentTimestamp,
             "messageType" to messageType
         )
@@ -139,6 +160,7 @@ class ChatRoomViewModel : ViewModel() {
         )
 
         Log.d(TAG, "Attempting multi-location update for GroupID: $groupId, MessageType: $messageType")
+        Log.d(TAG, "Attempting multi-location update. CurrentAuthUID: ${currentUserId}. Updates (with anonymized senderName): $updates") // Updated log
         viewModelScope.launch {
             try {
                 database.reference.updateChildren(updates).await()
