@@ -15,6 +15,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels // For normal ViewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.children
@@ -34,6 +35,7 @@ import com.google.firebase.database.*
 
 class HomeActivity : AppCompatActivity(),ChatNavigationListener {
 
+    private val homeViewModel: HomeViewModel by viewModels()
 
     private var navController: NavController? = null
 
@@ -749,14 +751,49 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
     //==============================================================================================
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.home_menu, menu)
-        dmNotificationBellMenuItem = menu?.findItem(R.id.action_notifications) // For DM notifications
-        unreadCountViewModel.unreadDirectMessagesCount.value?.let {
-            updateDirectMessageNotificationBadge(it)
-        }
+
+        // DM Notification Badge Setup
+        dmNotificationBellMenuItem = menu?.findItem(R.id.action_notifications)
+        // Initial update for DM badge based on ViewModel's current value
+        updateDirectMessageNotificationBadge(unreadCountViewModel.unreadDirectMessagesCount.value ?: 0)
+
+        // Search View Setup
+        val searchItem = menu?.findItem(R.id.action_search_dms) // Use your search item ID
+        val searchView = searchItem?.actionView as? SearchView
+
+        searchView?.queryHint = getString(R.string.search_groups_hint) // Example: "Search groups..."
+        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                homeViewModel.setSearchQuery(query)
+                searchView.clearFocus() // Optional: hide keyboard
+                Log.d(TAG, "Search submitted: $query")
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                homeViewModel.setSearchQuery(newText)
+                Log.d(TAG, "Search query changed: $newText")
+                return true
+            }
+        })
+
+        // Optional: Handle search view expansion/collapse to clear query
+        searchItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                // Optional: Perform actions when search is expanded
+                return true // Return true to allow expansion
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                homeViewModel.setSearchQuery(null) // Clear search query when collapsed
+                Log.d(TAG, "Search collapsed, query cleared.")
+                return true // Return true to allow collapse
+            }
+        })
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_logout -> {
                 performLogout()

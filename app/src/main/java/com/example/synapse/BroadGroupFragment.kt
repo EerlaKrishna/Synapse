@@ -9,10 +9,7 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.observe
-
+import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.synapse.chats.BroadGroupViewModel
 import com.example.synapse.chats.CreateGroupDialogFragment
@@ -20,21 +17,18 @@ import com.example.synapse.chats.Group
 import com.example.synapse.chats.GroupListAdapter // Your adapter
 import com.example.synapse.databinding.FragmentBroadGroupBinding
 
-// Remove the OnGroupClickListener interface if it was defined here for the fragment to implement
-// interface OnGroupClickListener {
-//    fun onGroupClicked(group: Group)
-// }
-
-// ChatNavigationListener should be defined (as it was before)
 interface ChatNavigationListener {
     fun onNavigateToChatRoom(groupId: String, groupName: String?)
 }
 
-class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it was there
+class BroadGroupFragment : Fragment() {
 
     private var navigationListener: ChatNavigationListener? = null
     private var _binding: FragmentBroadGroupBinding? = null
     private val binding get() = _binding!!
+
+    private val homeViewModel: HomeViewModel by activityViewModels()
+    private var allGroups: List<Group> = emptyList()
 
     private val broadGroupViewModel: BroadGroupViewModel by activityViewModels()
     private lateinit var groupListAdapter: GroupListAdapter
@@ -56,7 +50,7 @@ class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it
         super.onViewCreated(view, savedInstanceState)
         Log.d(TAG, "onViewCreated called")
         setupRecyclerView() // Call setupRecyclerView
-        observeViewModel()
+        observeViewModels()
         setupFab()
     }
     private fun setupFab() {
@@ -109,79 +103,121 @@ class BroadGroupFragment : Fragment() { // REMOVE ", OnGroupClickListener" if it
     }
 // In BroadGroupFragment.kt
 
-    private fun observeViewModel() {
-        Log.d(TAG, "Fragment: Setting up ViewModel observer for 'groups'.")
-        broadGroupViewModel.groups.observe(viewLifecycleOwner) { groups ->
-            Log.d(TAG, "Fragment: 'groups' LiveData updated in Fragment. Item count: ${groups.size}")
-            if (groups.isNotEmpty()) {
-                groups.take(3).forEachIndexed { index, group ->
-                    // --- MODIFIED LOGGING LINE START ---
+    private fun observeViewModels() {
+        Log.d(TAG, "Fragment: Setting up ViewModel observers.")
+
+        // Observe the full list of groups from BroadGroupViewModel
+        broadGroupViewModel.groups.observe(viewLifecycleOwner, Observer { groups ->
+            Log.d(TAG, "Fragment: 'groups' LiveData updated in Fragment. Original item count: ${groups?.size ?: 0}")
+            allGroups = groups ?: emptyList() // Store the full list
+
+            // Log first few items from the original list for verification
+            if (allGroups.isNotEmpty()) {
+                allGroups.take(3).forEachIndexed { index, group ->
                     Log.d(
                         TAG,
-                        "Fragment: Group $index in list: ID='${group.id}', Name='${group.name}', " +
-                                "LastMsg='${group.lastMessage?.text?.take(30)}...', " + // Access via group.lastMessage?.text
-                                "Sender='${group.lastMessage?.senderName}', " +           // Access via group.lastMessage?.senderName
-                                "Unread='${group.unreadCount}', " +
-                                "TS='${group.lastMessage?.timestamp}'"                  // Access via group.lastMessage?.timestamp
+                        "Fragment: Original Group $index: ID='${group.id}', Name='${group.name}', " +
+                                "LastMsg='${group.lastMessage?.text?.take(30)}...', " +
+                                "Unread='${group.unreadCount}'"
                     )
-                    // --- MODIFIED LOGGING LINE END ---
                 }
             }
 
-            // Check if the list submitted to the adapter actually contains the new data
-            // --- MODIFIED LOGGING LINE FOR SUBMITLIST START ---
-            Log.d(TAG, "Fragment: Submitting list to adapter. First item's last message TS (if any): ${groups.firstOrNull()?.lastMessage?.timestamp}")
-            // --- MODIFIED LOGGING LINE FOR SUBMITLIST END ---
-            groupListAdapter.submitList(groups.toList()) {
-                Log.d(
-                    TAG,
-                    "Fragment: submitList completed. Current list size in adapter: ${groupListAdapter.itemCount}"
-                )
-            }
+            // Apply current search query to the new full list
+            val currentQuery = homeViewModel.searchQuery.value
+            Log.d(TAG, "Full group list updated. Applying current search query: '$currentQuery'")
+            filterAndDisplayGroups(currentQuery)
+        })
 
-            if (groups.isEmpty()) {
-                binding.recyclerViewBroadGroups.visibility = View.GONE
-                binding.textViewNoChatsPlaceholder.visibility = View.VISIBLE
-                Log.d(TAG, "Fragment: Displaying empty group list message.")
-            } else {
-                binding.recyclerViewBroadGroups.visibility = View.VISIBLE
-                binding.textViewNoChatsPlaceholder.visibility = View.GONE
-                Log.d(TAG, "Fragment: Displaying group list.")
-            }
-        }
+        // Observe the search query from HomeViewModel
+        homeViewModel.searchQuery.observe(viewLifecycleOwner, Observer { query ->
+            Log.d(TAG, "Fragment: Search query LiveData updated to: '$query'")
+            // Filter the existing 'allGroups' list with the new query
+            filterAndDisplayGroups(query)
+        })
 
-        broadGroupViewModel.error.observe(viewLifecycleOwner) { errorMessage ->
+        // Error observation (remains the same)
+        broadGroupViewModel.error.observe(viewLifecycleOwner, Observer { errorMessage ->
             errorMessage?.let {
                 Log.e(TAG, "ViewModel error: $it")
                 Toast.makeText(context, "Error: $it", Toast.LENGTH_LONG).show()
-                // broadGroupViewModel.clearError() // If you implement this
             }
-        }
-        // Observe group creation events (optional, for UI feedback like a Toast or navigation)
-        broadGroupViewModel.groupCreatedEvent.observe(viewLifecycleOwner) { eventData ->
-            // eventData is Pair<String, String?> (groupId, groupName)
+        })
+
+        // Group creation event observation (remains the same)
+        broadGroupViewModel.groupCreatedEvent.observe(viewLifecycleOwner, Observer { eventData ->
             val groupName = eventData.second
             Log.i(TAG, "Observed groupCreatedEvent for group: $groupName (ID: ${eventData.first})")
             Toast.makeText(context, "Group '$groupName' created successfully!", Toast.LENGTH_SHORT).show()
-            // You could potentially navigate to the newly created group here if desired
-            // navigationListener?.onNavigateToChatRoom(eventData.first, eventData.second)
-        }
+        })
         Log.d(TAG, "ViewModel observers set up.")
     }
 
-    // If BroadGroupFragment was implementing OnGroupClickListener,
-    // this method is NO LONGER NEEDED because the lambda handles the click directly.
-    // override fun onGroupClicked(group: Group) {
-    //    Log.d(TAG, "Fragment: Group item clicked: GroupID='${group.id}', Name='${group.name}'")
-    //    broadGroupViewModel.markGroupAsRead(group.id)
-    //    navigationListener?.onNavigateToChatRoom(group.id, group.name)
-    //    Log.d(TAG, "Navigation request sent to listener for group: ${group.name}")
-    // }
+    private fun filterAndDisplayGroups(query: String?) {
+        val filteredList = if (query.isNullOrBlank()) {
+            Log.d(TAG, "Query is blank, displaying all ${allGroups.size} groups.")
+            allGroups // If query is empty, show all groups
+        } else {
+            val lowerCaseQuery = query.lowercase().trim()
+            Log.d(TAG, "Filtering groups with query: '$lowerCaseQuery'")
+            allGroups.filter { group ->
+                // Adjust your filtering logic as needed:
+                // Search in group name (case-insensitive)
+                (group.name?.lowercase()?.contains(lowerCaseQuery) == true)
+                // Example: also search in last message text (if available and desired)
+                // || (group.lastMessage?.text?.lowercase()?.contains(lowerCaseQuery) == true)
+                // Example: also search in another field if your Group object has it
+                // || (group.description?.lowercase()?.contains(lowerCaseQuery) == true)
+            }
+        }
+
+        Log.d(TAG, "Submitting list to adapter. Filtered count: ${filteredList.size}. Query: '$query'")
+        if (filteredList.isNotEmpty()) {
+            filteredList.take(3).forEachIndexed { index, group -> // Log first 3 filtered items
+                Log.d(TAG, "Fragment: Filtered Group $index to display: ID='${group.id}', Name='${group.name}'")
+            }
+        } else {
+            Log.d(TAG, "Fragment: Filtered list is empty.")
+        }
+
+        // Submit the filtered list to the adapter.
+        // Using toList() creates a new list instance, which is good for DiffUtil if your adapter uses it.
+        groupListAdapter.submitList(filteredList.toList()) {
+            // This callback is executed after the list diffing and updates are complete.
+            // Useful for logging or triggering animations.
+            Log.d(TAG, "Fragment: submitList for filtered data completed. Adapter item count: ${groupListAdapter.itemCount}")
+
+            // Optional: Scroll to the top of the list when a new search is performed
+            // and results are found. This can be a good user experience.
+            // if (filteredList.isNotEmpty() && !query.isNullOrBlank()) {
+            //    binding.recyclerViewBroadGroups.scrollToPosition(0)
+            // }
+        }
+
+        // Update placeholder visibility based on whether the filtered list is empty.
+        if (filteredList.isEmpty()) {
+            binding.recyclerViewBroadGroups.visibility = View.GONE
+            binding.textViewNoChatsPlaceholder.visibility = View.VISIBLE
+            // Set appropriate text for the placeholder based on whether there was a search query.
+            binding.textViewNoChatsPlaceholder.text = if (query.isNullOrBlank()) {
+                // Ensure you have these string resources defined in your strings.xml file
+                getString(R.string.no_groups_placeholder) // e.g., "No groups yet. Create one!"
+            } else {
+                getString(R.string.no_search_results_placeholder) // e.g., "No groups found for your search."
+            }
+            Log.d(TAG, "Fragment: Displaying placeholder: '${binding.textViewNoChatsPlaceholder.text}'")
+        } else {
+            binding.recyclerViewBroadGroups.visibility = View.VISIBLE
+            binding.textViewNoChatsPlaceholder.visibility = View.GONE
+            Log.d(TAG, "Fragment: Displaying filtered group list.")
+        }
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
+        // Important to prevent memory leaks with RecyclerView adapters
         binding.recyclerViewBroadGroups.adapter = null
-        _binding = null
-        Log.d(TAG, "onDestroyView called, binding set to null")
+        _binding = null // Crucial for view binding in Fragments
+        Log.d(TAG, "onDestroyView called, binding and adapter set to null")
     }
 }
