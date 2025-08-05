@@ -13,6 +13,7 @@ import com.google.firebase.auth.auth
 import java.util.UUID // Ensure this is the correct UUID import if you use it.
 import kotlin.text.isEmpty
 import kotlin.text.trim
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 // com.android.identity.util.UUID was used before, choose one consistently.
 // For simplicity, java.util.UUID is fine.
@@ -22,9 +23,16 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var binding: ActivityLoginBinding
     private lateinit var auth: FirebaseAuth
     // private val db = FirebaseDatabase.getInstance().reference // Keep if you need to check employee status later
+    private var isInitialCheckDone = false // Flag to manage splash screen during initial checks
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Step 1: Install the splash screen.
+        // This must be called before super.onCreate() and setContentView().
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        splashScreen.setKeepOnScreenCondition {  false  }
+
         binding = ActivityLoginBinding.inflate(layoutInflater) // Ensure this matches your XML file name (e.g., activity_login.xml)
         setContentView(binding.root)
 
@@ -44,6 +52,7 @@ class LoginActivity : AppCompatActivity() {
             // This can happen if the app was closed and SharedPreferences were cleared, but Firebase token is still valid.
             saveNewSession(auth.currentUser!!.uid) // Or generate a new random UUID if preferred
         }
+        isInitialCheckDone = true // Add this if not already handled by all paths
 
 
         binding.loginButton.setOnClickListener { // Ensure your login button ID is 'loginButton'
@@ -121,27 +130,4 @@ class LoginActivity : AppCompatActivity() {
             .apply()
         // Log.d("LoginActivity", "Session ID saved: $sessionIdToSave")
     }
-
-    // Example: Placeholder for future employee status check
-    // private fun checkUserEmployeeStatus(uid: String?) {
-    //     if (uid == null) return
-    //     db.child("verified_employees").child(uid).get()
-    //         .addOnSuccessListener { dataSnapshot ->
-    //             if (dataSnapshot.exists()) {
-    //                 // User is a verified employee
-    //                 // Store this status in SharedPreferences or pass to HomeActivity
-    //                 getSharedPreferences("session", MODE_PRIVATE).edit().putBoolean("isEmployee", true).apply()
-    //             } else {
-    //                 getSharedPreferences("session", MODE_PRIVATE).edit().putBoolean("isEmployee", false).apply()
-    //             }
-    //             startActivity(Intent(this, HomeActivity::class.java))
-    //             finishAffinity()
-    //         }
-    //         .addOnFailureListener {
-    //             // Handle error, maybe proceed as non-employee
-    //             getSharedPreferences("session", MODE_PRIVATE).edit().putBoolean("isEmployee", false).apply()
-    //             startActivity(Intent(this, HomeActivity::class.java))
-    //             finishAffinity()
-    //         }
-    // }
 }

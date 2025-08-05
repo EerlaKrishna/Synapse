@@ -1,7 +1,34 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.Synapse" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+    <!-- Base application theme customizations for night mode can go into your
+         existing Base.Theme.Synapse or Theme.Synapse if needed, since it
+         inherits from DayNight.NoActionBar.
+         For example, if certain M3 colors needed slight adjustments for dark theme
+         beyond what DayNight parent provides, you'd override them in Theme.Synapse
+         or Base.Theme.Synapse within this file. -->
+
+    <!-- Example: If you wanted Theme.Synapse to have specific overrides for dark mode -->
+    <!--
+    <style name="Theme.Synapse" parent="Base.Theme.Synapse">
+        <item name="colorSurface">@color/some_specific_dark_surface_color</item>
+        <item name="colorOnSurface">@color/some_specific_dark_on_surface_color</item>
+    </style>
+    -->
+
+    <!-- Splash Screen Theme (Night) -->
+    <!-- This theme is applied to your LoginActivity in the Manifest when night mode is active -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- Background color for the splash screen (Night mode) -->
+        <item name="windowSplashScreenBackground">@color/synapse_splash_background_night</item>
+
+        <!-- Animated icon for the splash screen (your launcher icon) -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/synapse1</item>
+
+        <!-- Theme to apply after the splash screen finishes -->
+        <item name="postSplashScreenTheme">@style/Theme.Synapse</item>
+
+        <!-- Optional: Tint the icon if it's monochrome and needs a specific color for night mode.
+             e.g., if you want the icon to be white in dark mode.
+        <item name="windowSplashScreenIconTintColor">@color/white</item>
+        -->
     </style>
 </resources>

@@ -21,6 +21,7 @@ firebaseDatabase = "22.0.0"
 firebaseMessagingKtx = "24.1.2"
 firebaseMessaging = "25.0.0"
 uiTextAndroid = "1.8.3"
+coreSplashscreen = "1.0.1"
 
 
 [libraries]
@@ -43,6 +44,7 @@ firebase-database = { group = "com.google.firebase", name = "firebase-database",
 firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx", version.ref = "firebaseMessagingKtx" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
 androidx-ui-text-android = { group = "androidx.compose.ui", name = "ui-text-android", version.ref = "uiTextAndroid" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

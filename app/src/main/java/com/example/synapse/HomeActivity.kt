@@ -22,6 +22,9 @@ import androidx.core.view.children
 import androidx.lifecycle.ViewModelProvider // Required for activity-scoped ViewModel
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.navigateUp
+import androidx.navigation.ui.setupActionBarWithNavController
 import com.example.synapse.chats.BroadGroupViewModel
 import com.example.synapse.chats.GroupData
 import com.example.synapse.databinding.ActivityHomeBinding
@@ -38,7 +41,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
     private val homeViewModel: HomeViewModel by viewModels()
 
     private var navController: NavController? = null
-
+    private lateinit var appBarConfiguration: AppBarConfiguration
 
     private val TAG = "HomeActivity" // For logging
 
@@ -125,6 +128,16 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
             .findFragmentById(R.id.nav_host_fragment_activity_home) as NavHostFragment? // Replace with your NavHostFragment ID
         navController = navHostFragment?.navController
 
+
+        appBarConfiguration = AppBarConfiguration(
+            setOf(
+                R.id.broadGroupFragment // Add other top-level tab fragments if they are in this graph
+                // e.g., R.id.directMessagesFragment
+            )
+            // , binding.drawerLayout // If you have a DrawerLayout
+        )
+        navController?.let { setupActionBarWithNavController(it, appBarConfiguration) }
+
         if (navController == null) {
             Log.e("HomeActivity", "NavController not found from nav_host_fragment_activity_home. Ensure it's in the layout and correctly typed.")
         }
@@ -156,8 +169,14 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         Log.d(TAG, "onCreate completed.")
     }
 
-    // HomeActivity.kt (Continued from onResume())
+    // In HomeActivity.kt
+// Assuming mainNavController is lateinit var and initialized
 
+    override fun onSupportNavigateUp(): Boolean {
+        // If navController is null, navigateUp isn't called, and the expression becomes null.
+        // The Elvis operator then provides 'false', leading to super.onSupportNavigateUp().
+        return navController?.navigateUp(appBarConfiguration) ?: false || super.onSupportNavigateUp()
+    }
 
     override fun onNewIntent(intent: Intent) { // Added 'override'
         super.onNewIntent(intent)

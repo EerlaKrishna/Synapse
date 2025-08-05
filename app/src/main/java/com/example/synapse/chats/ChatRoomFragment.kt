@@ -67,6 +67,10 @@ class ChatRoomFragment : Fragment() {
         Log.d(TAG, "onViewCreated called.")
         Log.d(TAG, "Received Group ID: ${navArgs.groupId}, Group Name: ${navArgs.groupName}")
 
+        // Set the channel name to the new TextView
+        binding.textViewChannelNameHeader.text = navArgs.groupName ?: getString(R.string.default_channel_name) // Use a string resource for default
+
+
         (activity as? AppCompatActivity)?.supportActionBar?.title = navArgs.groupName
 
         if (currentUserId == null) {
@@ -85,9 +89,14 @@ class ChatRoomFragment : Fragment() {
         if (binding.tabLayoutChatRoom.tabCount > 0) {
             binding.tabLayoutChatRoom.getTabAt(0)?.select()
         }
-        if (chatRoomViewModel.messages.value.isNullOrEmpty() && binding.tabLayoutChatRoom.selectedTabPosition == 0) {
-            Log.d(TAG, "Explicit initial load for default tab (Improvement). GroupId: ${navArgs.groupId}")
-            currentMessageType = MESSAGE_TYPE_IMPROVEMENT
+        if (chatRoomViewModel.messages.value.isNullOrEmpty()) {
+            val initialMessageType = if (binding.tabLayoutChatRoom.selectedTabPosition == 1) {
+                MESSAGE_TYPE_DRAWBACK
+            } else {
+                MESSAGE_TYPE_IMPROVEMENT // Default to improvement
+            }
+            currentMessageType = initialMessageType // Ensure currentMessageType is set
+            Log.d(TAG, "Explicit initial load for tab position ${binding.tabLayoutChatRoom.selectedTabPosition}. Type: $currentMessageType. GroupId: ${navArgs.groupId}")
             chatRoomViewModel.loadMessages(navArgs.groupId, currentMessageType)
         }
     }

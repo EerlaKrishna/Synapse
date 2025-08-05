@@ -20,7 +20,7 @@
 
     <string name="no_groups_placeholder">No groups yet. Tap the + button to create one!</string>
     <string name="no_search_results_placeholder">No groups found matching your search.</string>
-
+    <string name="default_channel_name">Channel</string>
 
     <string name="desc_add_new_group">Create a new group</string>
 
