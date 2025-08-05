@@ -2,6 +2,8 @@ package com.example.synapse.chats
 
 import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -9,6 +11,7 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.navArgs
@@ -18,27 +21,35 @@ import com.example.synapse.databinding.FragmentChatRoomBinding
 import com.example.synapse.Message // Ensure this is imported
 import com.example.synapse.MessageAdapter
 import com.google.android.material.tabs.TabLayout
-// Removed: import com.google.android.material.tabs.TabLayoutMediator - No longer needed
 import com.google.firebase.auth.FirebaseAuth
+import java.util.concurrent.TimeUnit
 
 class ChatRoomFragment : Fragment() {
 
+    // Binding
     private var _binding: FragmentChatRoomBinding? = null
-    private val binding get() = _binding!!
+    private val binding get() = _binding!! // Non-null accessor
 
+    // Navigation Arguments & ViewModel
     private val navArgs: ChatRoomFragmentArgs by navArgs()
     private val chatRoomViewModel: ChatRoomViewModel by viewModels()
 
-    // Removed: private lateinit var chatRoomPagerAdapter: ChatRoomPagerAdapter
+    // RecyclerView Adapter & User Info
     private lateinit var messageListAdapter: MessageAdapter
     private var currentUserId: String? = null
 
+    // Chat State
     private var currentMessageType: String = MESSAGE_TYPE_IMPROVEMENT
+
+    // For periodic refresh of message list (bolding recent messages)
+    private val refreshHandler = Handler(Looper.getMainLooper())
+    private var refreshRunnable: Runnable? = null
+    private val REFRESH_INTERVAL_MS = TimeUnit.MINUTES.toMillis(1) // Refresh every 1 minute
 
     companion object {
         private const val TAG = "ChatRoomFragment"
-        private const val MESSAGE_TYPE_IMPROVEMENT = "improvement_messages" // Match Firebase node
-        private const val MESSAGE_TYPE_DRAWBACK = "drawback_messages"       // Match Firebase node
+        private const val MESSAGE_TYPE_IMPROVEMENT = "improvement_messages"
+        private const val MESSAGE_TYPE_DRAWBACK = "drawback_messages"
     }
 
     override fun onCreateView(
@@ -66,26 +77,43 @@ class ChatRoomFragment : Fragment() {
             return
         }
 
-        setupTabs() // Renamed from setupTabsAndViewPager
+        setupTabs()
         setupMessagesRecyclerView()
         setupSendButton()
         observeViewModel()
 
-        // Ensure the first tab is selected visually and data is loaded for it
-        binding.tabLayoutChatRoom.getTabAt(0)?.select()
-        // The onTabSelected listener should trigger the initial load.
-        // If you find it doesn't reliably (e.g., if tabs are added after listener is set),
-        // you can add an explicit initial load here, checking if messages are already loaded.
+        if (binding.tabLayoutChatRoom.tabCount > 0) {
+            binding.tabLayoutChatRoom.getTabAt(0)?.select()
+        }
         if (chatRoomViewModel.messages.value.isNullOrEmpty() && binding.tabLayoutChatRoom.selectedTabPosition == 0) {
             Log.d(TAG, "Explicit initial load for default tab (Improvement). GroupId: ${navArgs.groupId}")
-            currentMessageType = MESSAGE_TYPE_IMPROVEMENT // Ensure it's set before load
+            currentMessageType = MESSAGE_TYPE_IMPROVEMENT
             chatRoomViewModel.loadMessages(navArgs.groupId, currentMessageType)
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::messageListAdapter.isInitialized && messageListAdapter.itemCount > 0 && currentUserId != null) {
+            startPeriodicRefresh()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopPeriodicRefresh()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        Log.d(TAG, "onDestroyView called.")
+        binding.recyclerViewMessages.adapter = null
+        _binding = null
+        stopPeriodicRefresh() // Ensure handler callbacks are removed
+    }
+
     private fun setupTabs() {
         Log.d(TAG, "Setting up tabs.")
-
         if (binding.tabLayoutChatRoom.tabCount == 0) {
             binding.tabLayoutChatRoom.addTab(
                 binding.tabLayoutChatRoom.newTab().setText(getString(R.string.tab_improvement))
@@ -97,7 +125,7 @@ class ChatRoomFragment : Fragment() {
         } else {
             binding.tabLayoutChatRoom.getTabAt(0)?.text = getString(R.string.tab_improvement)
             binding.tabLayoutChatRoom.getTabAt(1)?.text = getString(R.string.tab_drawback)
-            Log.d(TAG, "Tabs already exist or are defined in XML. Ensuring text is set. Count: ${binding.tabLayoutChatRoom.tabCount}")
+            Log.d(TAG, "Tabs already exist. Ensuring text is set. Count: ${binding.tabLayoutChatRoom.tabCount}")
         }
 
         binding.tabLayoutChatRoom.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
@@ -108,16 +136,17 @@ class ChatRoomFragment : Fragment() {
                         0 -> MESSAGE_TYPE_IMPROVEMENT
                         1 -> MESSAGE_TYPE_DRAWBACK
                         else -> {
-                            Log.w(TAG, "Unknown tab selected at position: ${it.position}, defaulting to IMPROVEMENT.")
+                            Log.w(TAG, "Unknown tab selected: ${it.position}, defaulting to IMPROVEMENT.")
                             MESSAGE_TYPE_IMPROVEMENT
                         }
                     }
                     if (previousMessageType != currentMessageType) {
-                        Log.d(TAG, "Tab selected: Position ${it.position}, New MessageType: $currentMessageType")
+                        Log.d(TAG, "Tab selected: Pos ${it.position}, New Type: $currentMessageType")
                         messageListAdapter.submitList(emptyList())
+                        stopPeriodicRefresh()
                         chatRoomViewModel.loadMessages(navArgs.groupId, currentMessageType)
                     } else {
-                        Log.d(TAG, "Tab reselected or message type unchanged ($currentMessageType). Data load handled by onTabReselected or initial load.")
+                        Log.d(TAG, "Tab reselected or type unchanged ($currentMessageType).")
                     }
                 }
             }
@@ -125,30 +154,29 @@ class ChatRoomFragment : Fragment() {
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
 
             override fun onTabReselected(tab: TabLayout.Tab?) {
-                Log.d(TAG, "Tab reselected: Position ${tab?.position}, MessageType: $currentMessageType")
+                Log.d(TAG, "Tab reselected: Pos ${tab?.position}, Type: $currentMessageType")
                 messageListAdapter.submitList(emptyList())
+                stopPeriodicRefresh()
                 chatRoomViewModel.loadMessages(navArgs.groupId, currentMessageType)
             }
         })
-        Log.d(TAG, "OnTabSelectedListener added to TabLayout.")
+        Log.d(TAG, "OnTabSelectedListener added.")
     }
 
     private fun setupMessagesRecyclerView() {
-        Log.d(TAG, "Setting up messages RecyclerView for ChatRoomFragment.")
-        messageListAdapter = MessageAdapter(currentUserId!!)
-        binding.recyclerViewMessages.adapter = messageListAdapter
-        val layoutManager = LinearLayoutManager(requireContext()).apply {
-            stackFromEnd = true
+        Log.d(TAG, "Setting up messages RecyclerView.")
+        currentUserId?.let { userId ->
+            messageListAdapter = MessageAdapter(userId) // Pass currentUserId
+            binding.recyclerViewMessages.adapter = messageListAdapter
+            val layoutManager = LinearLayoutManager(requireContext()).apply {
+                stackFromEnd = true
+            }
+            binding.recyclerViewMessages.layoutManager = layoutManager
+            binding.recyclerViewMessages.itemAnimator = null // To prevent flickering on refresh
+            Log.d(TAG, "Messages RecyclerView setup complete.")
+        } ?: run {
+            Log.e(TAG, "Cannot setup RecyclerView: currentUserId is null.")
         }
-        binding.recyclerViewMessages.layoutManager = layoutManager
-        Log.d(TAG, "Messages RecyclerView adapter and layout manager set for ChatRoomFragment.")
-    }
-
-    private fun getCurrentUserName(): String {
-        val firebaseUser = FirebaseAuth.getInstance().currentUser
-        return firebaseUser?.displayName?.takeIf { it.isNotBlank() }
-            ?: firebaseUser?.email?.takeIf { it.contains("@") }?.substringBefore("@")
-            ?: "User"
     }
 
     private fun setupSendButton() {
@@ -156,7 +184,7 @@ class ChatRoomFragment : Fragment() {
             val messageText = binding.editTextMessage.text.toString().trim()
             if (messageText.isNotEmpty()) {
                 val userName = getCurrentUserName()
-                Log.d(TAG, "Sending message. GroupId: ${navArgs.groupId}, Type: $currentMessageType, Text: $messageText, User: $userName")
+                Log.d(TAG, "Sending: Group ${navArgs.groupId}, Type $currentMessageType, Text '$messageText', User '$userName'")
                 chatRoomViewModel.sendMessage(
                     groupId = navArgs.groupId,
                     messageType = currentMessageType,
@@ -166,39 +194,47 @@ class ChatRoomFragment : Fragment() {
                 binding.editTextMessage.text.clear()
                 hideKeyboard()
             } else {
-                Log.d(TAG, "Send button clicked with empty message.")
+                Log.d(TAG, "Send button: emptymessage.")
                 Toast.makeText(requireContext(), getString(R.string.message_empty_cannot_send), Toast.LENGTH_SHORT).show()
             }
         }
     }
 
+    private fun getCurrentUserName(): String {
+        val firebaseUser = FirebaseAuth.getInstance().currentUser
+        return firebaseUser?.displayName?.takeIf { it.isNotBlank() }
+            ?: firebaseUser?.email?.takeIf { it.contains("@") }?.substringBefore("@")
+            ?: getString(R.string.default_anonymous_user_name) // Ensure this string resource exists
+    }
+
+
+// End of Part 1
+// Continued from Part 1...
+
     private fun observeViewModel() {
-        Log.d(TAG, "Observing ViewModel for ChatRoomFragment.")
+        Log.d(TAG, "Observing ViewModel.")
 
         chatRoomViewModel.messages.observe(viewLifecycleOwner) { messages ->
-            // Ensure the messages being submitted are for the currently selected tab.
-            // This check is important because the LiveData might emit old data
-            // from a previous messageType if not handled carefully in ViewModel or here.
-            // However, since loadMessages is called on tab change, this should generally be fine.
-            Log.d(TAG, "Observed messages list for $currentMessageType. Count: ${messages.size}")
-            messageListAdapter.submitList(messages.toList()) { // Create a new list for DiffUtil
-                // Scroll to bottom only if new messages were added or list is not empty
-                // and the user hasn't scrolled up manually (more complex to check,
-                // for now, always scroll if list is updated and not empty).
+            Log.d(TAG, "Observed messages for $currentMessageType. Count: ${messages.size}")
+            messageListAdapter.submitList(messages.toList()) {
                 if (messages.isNotEmpty()) {
-                    // Check if the last visible item is close to the end of the list
-                    // to avoid auto-scrolling if the user has scrolled up.
                     val layoutManager = binding.recyclerViewMessages.layoutManager as LinearLayoutManager
                     val lastVisibleItemPosition = layoutManager.findLastVisibleItemPosition()
                     val totalItemCount = messageListAdapter.itemCount
 
-                    // Auto-scroll if near the bottom or if it's an initial load/small list
-                    if (lastVisibleItemPosition == -1 || // Nothing visible yet
-                        (totalItemCount - lastVisibleItemPosition) <= 5 || // Near the bottom
-                        lastVisibleItemPosition == totalItemCount - 2) { // If a new item was added at the end
+                    if (lastVisibleItemPosition == -1 ||
+                        (totalItemCount - lastVisibleItemPosition) <= 5 ||
+                        lastVisibleItemPosition == totalItemCount - 2 ||
+                        layoutManager.stackFromEnd) {
                         binding.recyclerViewMessages.smoothScrollToPosition(messages.size - 1)
                     }
                 }
+            }
+            // Manage periodic refresh based on message list
+            if (messages.isNotEmpty() && viewLifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                startPeriodicRefresh()
+            } else {
+                stopPeriodicRefresh()
             }
         }
 
@@ -206,16 +242,13 @@ class ChatRoomFragment : Fragment() {
             errorMessage?.let {
                 Log.e(TAG, "ViewModel error: $it")
                 Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
-                chatRoomViewModel.clearErrorMessage() // Important to prevent re-showing on config change
+                chatRoomViewModel.clearErrorMessage()
             }
         }
 
         chatRoomViewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            Log.d(TAG, "isLoading state changed: $isLoading")
+            Log.d(TAG, "isLoading state: $isLoading")
             binding.progressBarMessages.visibility = if (isLoading) View.VISIBLE else View.GONE
-
-            // Optionally, disable input fields while loading to prevent sending messages
-            // when the list might not be fully up-to-date or during an operation.
             binding.editTextMessage.isEnabled = !isLoading
             binding.buttonSendMessage.isEnabled = !isLoading
         }
@@ -226,11 +259,38 @@ class ChatRoomFragment : Fragment() {
         imm?.hideSoftInputFromWindow(view?.windowToken, 0)
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        Log.d(TAG, "onDestroyView called.")
-        // Important to prevent memory leaks with RecyclerView
-        binding.recyclerViewMessages.adapter = null
-        _binding = null
+    private fun startPeriodicRefresh() {
+        if (currentUserId == null || !::messageListAdapter.isInitialized) {
+            Log.w(TAG, "Cannot start periodic refresh: User ID or adapter not ready.")
+            return
+        }
+
+        stopPeriodicRefresh() // Stop any existing runnable
+        Log.d(TAG, "Starting periodic refresh for message list.")
+        refreshRunnable = Runnable {
+            if (isAdded && view != null && _binding != null) { // Ensure fragment is still valid
+                Log.d(TAG, "Periodic refresh: Re-submitting list to adapter.")
+                // Re-submit the current list. The adapter's onBindViewHolder will
+                // re-evaluate the bold status for each message.
+                messageListAdapter.submitList(messageListAdapter.currentList.toList())
+            }
+            // Schedule the next refresh only if the fragment is still in a resumed state
+            if (viewLifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                refreshHandler.postDelayed(refreshRunnable!!, REFRESH_INTERVAL_MS)
+            } else {
+                Log.d(TAG, "Periodic refresh: Not rescheduling as fragment is not resumed.")
+            }
+        }
+        // Post the first execution
+        refreshHandler.postDelayed(refreshRunnable!!, REFRESH_INTERVAL_MS)
+    }
+
+    private fun stopPeriodicRefresh() {
+        refreshRunnable?.let {
+            Log.d(TAG, "Stopping periodic refresh for message list.")
+            refreshHandler.removeCallbacks(it)
+        }
+        refreshRunnable = null // Clear the runnable
     }
 }
+// End of Part 2

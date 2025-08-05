@@ -1,5 +1,6 @@
 package com.example.synapse
 
+import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -7,10 +8,10 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-// import com.example.synapse.databinding.ItemChatMessageBinding // Not used anymore
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit // Import TimeUnit
 
 // Define view type constants
 private const val VIEW_TYPE_MESSAGE_SENT = 1
@@ -18,7 +19,11 @@ private const val VIEW_TYPE_MESSAGE_RECEIVED = 2
 
 class MessageAdapter(
     private val currentUserId: String // Pass current user's ID
-) : ListAdapter<Message, MessageAdapter.MessageViewHolder>(MessageDiffCallback()) { // Pass the callback instance
+) : ListAdapter<Message, MessageAdapter.MessageViewHolder>(MessageDiffCallback()) {
+
+    companion object {
+        private const val RECENT_THRESHOLD_MINUTES = 15L // 15 minutes
+    }
 
     override fun getItemViewType(position: Int): Int {
         val message = getItem(position)
@@ -47,24 +52,43 @@ class MessageAdapter(
     inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val messageText: TextView = itemView.findViewById(R.id.textView_message_text)
         private val messageTimestamp: TextView = itemView.findViewById(R.id.textView_message_timestamp)
-        private val messageSender: TextView? = itemView.findViewById(R.id.textView_message_sender)
+        private val messageSender: TextView? = itemView.findViewById(R.id.textView_message_sender) // This is for received messages
 
         fun bind(message: Message, viewType: Int) {
-            messageText.text = message.text // message.text is already String?
-            // Use the timestamp directly as it's Long, not Long? in your Message class
+            messageText.text = message.text
             messageTimestamp.text = message.timestamp?.let { formatTimestamp(it) }
 
-
             if (viewType == VIEW_TYPE_MESSAGE_RECEIVED) {
-                messageSender?.text = message.senderName
+                messageSender?.text = message.senderName // Should be "User" or your anonymous placeholder
                 messageSender?.visibility = View.VISIBLE
+
+                // Logic for bolding recent received messages
+                val messageTime = message.timestamp ?: 0L
+                val currentTime = System.currentTimeMillis()
+                val fifteenMinutesInMillis = TimeUnit.MINUTES.toMillis(RECENT_THRESHOLD_MINUTES)
+
+                if (messageTime > 0 && (currentTime - messageTime) < fifteenMinutesInMillis) {
+                    // Message is recent and received
+                    messageText.setTypeface(null, Typeface.BOLD)
+                    // Optionally, make sender name and timestamp bold too if desired
+                    // messageSender?.setTypeface(null, Typeface.BOLD)
+                    // messageTimestamp.setTypeface(null, Typeface.BOLD)
+                } else {
+                    // Message is older or not received (or timestamp invalid), ensure normal type
+                    messageText.setTypeface(null, Typeface.NORMAL)
+                    // messageSender?.setTypeface(null, Typeface.NORMAL)
+                    // messageTimestamp.setTypeface(null, Typeface.NORMAL)
+                }
+
             } else { // VIEW_TYPE_MESSAGE_SENT
                 messageSender?.visibility = View.GONE
+                // Sent messages are not made bold based on this logic, ensure normal type
+                messageText.setTypeface(null, Typeface.NORMAL)
+                // messageTimestamp.setTypeface(null, Typeface.NORMAL)
             }
         }
 
-        private fun formatTimestamp(timestamp: Long): String { // Changed to Long from Long?
-            // if (timestamp == null) return "just now" // No longer needed if timestamp is not nullable
+        private fun formatTimestamp(timestamp: Long): String {
             return try {
                 val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
                 val date = Date(timestamp)
@@ -75,14 +99,16 @@ class MessageAdapter(
         }
     }
 
-    // Using ListAdapter's DiffUtil for better performance
     class MessageDiffCallback : DiffUtil.ItemCallback<Message>() {
         override fun areItemsTheSame(oldItem: Message, newItem: Message): Boolean {
-            // Use the 'id' field from your Message class
-            return oldItem.id == newItem.id // <--- CHANGED FROM messageId to id
+            return oldItem.id == newItem.id
         }
 
         override fun areContentsTheSame(oldItem: Message, newItem: Message): Boolean {
+            // If you want the item to rebind when its "bold" status might change
+            // due to time passing (even if content is same), you might need more complex logic here
+            // or rely on the periodic refresh mechanism in the Fragment/Activity.
+            // For now, default comparison is fine, onBindViewHolder handles the styling.
             return oldItem == newItem
         }
     }
