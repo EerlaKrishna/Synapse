@@ -1,5 +1,6 @@
 package com.example.synapse
 
+import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
@@ -7,7 +8,8 @@ import androidx.viewpager2.adapter.FragmentStateAdapter
 class HomeViewPagerAdapter(fragmentActivity: FragmentActivity) : FragmentStateAdapter(fragmentActivity) {
 
     // Number of tabs
-    private val NUM_TABS = 2 // Assuming two tabs: Departments and Direct Messages
+    // If you are removing DirectMessageFragment, you likely only have 1 tab left.
+    private val NUM_TABS = 1 // Only "Departments" (BroadGroupFragment)
 
     override fun getItemCount(): Int {
         return NUM_TABS
@@ -16,8 +18,16 @@ class HomeViewPagerAdapter(fragmentActivity: FragmentActivity) : FragmentStateAd
     override fun createFragment(position: Int): Fragment {
         return when (position) {
             0 -> BroadGroupFragment() // Your fragment for "Departments"
-            1 -> DirectMessageFragment() // Your fragment for "Direct Messages" (Create this if it doesn't exist)
-            else -> throw IllegalArgumentException("Invalid position: $position")
+            // Case 1 for DirectMessageFragment is now removed.
+            else -> {
+                // If NUM_TABS is 1, this 'else' should ideally not be reached
+                // if getItemCount() is correctly respected by the ViewPager.
+                // However, it's good practice to handle unexpected positions.
+                Log.e("HomeViewPagerAdapter", "Invalid position requested: $position. Only 0 is valid.")
+                // You could return a default fragment or throw an exception.
+                // If you are sure only BroadGroupFragment should exist:
+                BroadGroupFragment() // Or throw IllegalArgumentException("Invalid position: $position. Expected 0.")
+            }
         }
     }
 }

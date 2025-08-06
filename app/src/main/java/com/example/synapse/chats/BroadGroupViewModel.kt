@@ -40,8 +40,8 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
     private val channelsRef = database.child("channels") // e.g., "channels" or "groups"
     private var channelsValueEventListener: ValueEventListener? = null
 
-    private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>>()
-    val groupCreatedEvent: LiveData<Pair<String, String?>> = _groupCreatedEvent
+    private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>?>()
+    val groupCreatedEvent: LiveData<Pair<String, String?>?> = _groupCreatedEvent
 
 
     // --- Existing ChatListItem related properties and functions ---

@@ -19,14 +19,6 @@
             android:padding="8dp"
             android:layout_marginEnd="60dp">
 
-            <TextView
-                android:id="@+id/textView_message_sender"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:textColor="@color/chat_sender_name_received"
-                tools:text="Sender Name" />
 
             <TextView
                 android:id="@+id/textView_message_text"

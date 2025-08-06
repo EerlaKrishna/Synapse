@@ -52,16 +52,12 @@ class MessageAdapter(
     inner class MessageViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val messageText: TextView = itemView.findViewById(R.id.textView_message_text)
         private val messageTimestamp: TextView = itemView.findViewById(R.id.textView_message_timestamp)
-        private val messageSender: TextView? = itemView.findViewById(R.id.textView_message_sender) // This is for received messages
 
         fun bind(message: Message, viewType: Int) {
             messageText.text = message.text
             messageTimestamp.text = message.timestamp?.let { formatTimestamp(it) }
 
             if (viewType == VIEW_TYPE_MESSAGE_RECEIVED) {
-                messageSender?.text = message.senderName // Should be "User" or your anonymous placeholder
-                messageSender?.visibility = View.VISIBLE
-
                 // Logic for bolding recent received messages
                 val messageTime = message.timestamp ?: 0L
                 val currentTime = System.currentTimeMillis()
@@ -81,7 +77,6 @@ class MessageAdapter(
                 }
 
             } else { // VIEW_TYPE_MESSAGE_SENT
-                messageSender?.visibility = View.GONE
                 // Sent messages are not made bold based on this logic, ensure normal type
                 messageText.setTypeface(null, Typeface.NORMAL)
                 // messageTimestamp.setTypeface(null, Typeface.NORMAL)

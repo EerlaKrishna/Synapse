@@ -59,7 +59,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
 
     // --- Preferences & ViewModels ---
     private lateinit var messagePrefs: SharedPreferences
-    private val unreadCountViewModel: UnreadCountViewModel by viewModels() // For DMs
     private lateinit var broadGroupViewModel: BroadGroupViewModel // For Broad Groups chat list
 
     // --- Notification & Permission ---
@@ -91,10 +90,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         const val EXTRA_LAUNCH_SOURCE = "com.example.synapse.LAUNCH_SOURCE"
 
     }
-
-
-    //region Lifecycle Methods
-    //==============================================================================================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false) // Enable edge-to-edge
@@ -122,7 +117,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
 
         initializeCoreComponents()
         setupUI() // Includes ViewPager and TabLayout
-        observeViewModels() // For DM unread count
 
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment_activity_home) as NavHostFragment? // Replace with your NavHostFragment ID
@@ -132,7 +126,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         appBarConfiguration = AppBarConfiguration(
             setOf(
                 R.id.broadGroupFragment // Add other top-level tab fragments if they are in this graph
-                // e.g., R.id.directMessagesFragment
             )
             // , binding.drawerLayout // If you have a DrawerLayout
         )
@@ -213,29 +206,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
                     return
                 }
 
-                // Navigate to ChatRoomFragment using NavController
-                // Make sure your navigation graph has an action from HomeFragment (or your start destination)
-                // to ChatRoomFragment and that ChatRoomFragment accepts groupId and groupName as arguments.
                 try {
-                    // Assuming your NavGraph has ChatRoomFragment defined with arguments:
-                    // <fragment android:id="@+id/chatRoomFragment" ... >
-                    //     <argument android:name="groupId" app:argType="string" />
-                    //     <argument android:name="groupName" app:argType="string" />
-                    // </fragment>
-                    // And an action from your current location in HomeActivity (e.g., a fragment hosted by it)
-                    // to this chatRoomFragment.
-                    // If HomeActivity's NavHost starts with a different fragment, navigate from there.
-                    // For simplicity, let's assume a global action or direct navigation if possible.
-
-                    // Option 1: If HomeActivity itself is a NavHost or can directly navigate
-                    // This requires ChatRoomFragment to be a destination in the graph hosted by HomeActivity's NavController
-                   // val action = HomeFragmentDirections.actionHomeFragmentToChatRoomFragment(groupId, groupName)
-                    // Replace 'HomeFragmentDirections' with the Directions class generated from the fragment
-                    // that is currently visible in your HomeActivity's NavHost when a notification might arrive,
-                    // or a global action if you have one defined.
-
-                    // A more robust way if you don't know the current destination or want a global-like navigation:
-                    // Check if the current destination is NOT already the chat room for this group
                     val currentDestinationId = navController?.currentDestination?.id
                     var shouldNavigate = true
                     if (currentDestinationId == R.id.chatRoomFragment) {
@@ -354,16 +325,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
-    }
-
-
-    private fun observeViewModels() {
-        // For Direct Messages unread count (your existing logic)
-        unreadCountViewModel.unreadDirectMessagesCount.observe(this) { count ->
-            updateDirectMessageNotificationBadge(count)
-        }
-        // No direct observation of broadGroupViewModel.chatList here,
-        // as BroadGroupFragment handles that.
     }
     //endregion
 
@@ -704,7 +665,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         // and handle unread counts separately. However, for notifications, you might need more.
         // The current ViewModel logic updates based on the latest message in the snapshot.
     }
-    //endregion
 
     //region SharedPreferences for Message Timestamps
     //==============================================================================================
@@ -718,13 +678,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         Log.d(TAG, "Retrieved last seen timestamp for $listenerKey: $timestamp")
         return timestamp
     }
-    //endregion
-
-    // HomeActivity.kt (Continued from clearAllGroupMessageListenersOnly())
-
-    // HomeActivity.kt
-
-// ... (other parts of your HomeActivity class)
 
     //region Listener Cleanup
     //==============================================================================================
@@ -758,13 +711,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         activeFirebasePathsForListeners.clear()
         Log.d(TAG, "All group message data listeners cleared.")
     }
-    //endregion
-
-// ... (rest of your HomeActivity class, like Menu Handling, Navigation, etc.)
-
-
-
-    //endregion
 
     //region Menu Handling (Your existing logic, ensure IDs match)
     //==============================================================================================
@@ -774,7 +720,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         // DM Notification Badge Setup
         dmNotificationBellMenuItem = menu?.findItem(R.id.action_notifications)
         // Initial update for DM badge based on ViewModel's current value
-        updateDirectMessageNotificationBadge(unreadCountViewModel.unreadDirectMessagesCount.value ?: 0)
+       // updateDirectMessageNotificationBadge(unreadCountViewModel.unreadDirectMessagesCount.value ?: 0)
 
         // Search View Setup
         val searchItem = menu?.findItem(R.id.action_search_dms) // Use your search item ID
@@ -819,7 +765,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
                 true
             }
             R.id.action_notifications -> { // This is for DMs
-                Toast.makeText(this, "Direct Messages notifications clicked", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, " Messages notifications clicked", Toast.LENGTH_SHORT).show()
                 val dmTabIndex = tabTitles.indexOf("Direct Messages")
                 if (dmTabIndex != -1) {
                     binding.viewPagerHome.currentItem = dmTabIndex
@@ -830,28 +776,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
             else -> super.onOptionsItemSelected(item)
         }
     }
-
-    private fun updateDirectMessageNotificationBadge(count: Int) {
-        dmNotificationBellMenuItem?.let { menuItem ->
-            val actionView = menuItem.actionView
-            if (count > 0) {
-                if (actionView == null || actionView.id != R.id.menu_item_notification_badge_root) {
-                    menuItem.setActionView(R.layout.menu_item_notification_badge)
-                }
-                val badgeTextView = menuItem.actionView?.findViewById<TextView>(R.id.notification_badge_text)
-                badgeTextView?.text = if (count > 99) "99+" else count.toString()
-                badgeTextView?.visibility = View.VISIBLE
-            } else {
-                val badgeTextView = menuItem.actionView?.findViewById<TextView>(R.id.notification_badge_text)
-                badgeTextView?.visibility = View.GONE
-                // Optionally set actionView to null if you want to remove it completely when count is 0
-                // menuItem.actionView = null
-            }
-        }
-        Log.d(TAG, "DM Notification badge updated with count: $count")
-    }
-    //endregion
-
     //region Navigation and Logout
     //==============================================================================================
     private fun navigateToLogin() {
@@ -869,8 +793,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         Log.d(TAG, "Cleared broad_group_message_prefs.")
 
         broadGroupViewModel.clearAllData() // Clear data from the ViewModel
-        unreadCountViewModel.clearAllData() // Assuming UnreadCountViewModel has a similar method
-
         navigateToLogin()
     }
     //endregion
@@ -904,16 +826,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
             return
         }
         try {
-            // Assuming you have an action from your current location in HomeActivity's nav graph
-            // to the ChatRoomFragment.
-            // OR if ChatRoomFragment is a top-level destination you can navigate directly by ID.
-
-            // Example using an action from the current destination (if applicable)
-            // val action = CurrentFragmentDirections.actionToChatRoomFragment(groupId, groupName)
-            // navController?.navigate(action)
-
-            // Example navigating directly to ChatRoomFragment destination ID with arguments
-            // Ensure R.id.chatRoomFragment is a destination in your HomeActivity's nav_graph.xml
             val bundle = Bundle().apply {
                 putString("groupId", groupId)
                 putString("groupName", groupName)
@@ -930,6 +842,4 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         }
     }
 
-
-    //endregion
 }
