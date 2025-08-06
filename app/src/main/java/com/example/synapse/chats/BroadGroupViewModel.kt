@@ -355,7 +355,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                     "VM: New channel '$groupName' successfully created in Firebase with ID: $newGroupId by $creatorId"
                 )
                 // If _groupCreatedEvent is used, post to it. Example:
-                // _groupCreatedEvent.postValue(Pair(newGroupId, groupName))
+                _groupCreatedEvent.postValue(Pair(newGroupId, groupName.trim()))
             }
             .addOnFailureListener { e ->
                 Log.e(
