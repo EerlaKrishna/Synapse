@@ -287,7 +287,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "VM: Firebase listener for channels cancelled: ${error.message} at ${channelsRef}", error.toException())
-                _error.postValue("Failed to load group data: ${error.message}")
+               // _error.postValue("Failed to load group data: ${error.message}")
             }
         })
     }

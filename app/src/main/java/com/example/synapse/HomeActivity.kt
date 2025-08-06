@@ -48,7 +48,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
 
     // --- ViewBinding and Core UI ---
     private lateinit var binding: ActivityHomeBinding
-    private val tabTitles = arrayOf("Broad Groups", "Direct Messages")
+    private val tabTitles = arrayOf("Boards", "Direct Messages")
 
     // --- Authentication & Firebase ---
     lateinit var auth: FirebaseAuth
