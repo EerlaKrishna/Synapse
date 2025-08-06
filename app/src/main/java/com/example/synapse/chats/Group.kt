@@ -1,35 +1,46 @@
 package com.example.synapse.chats
 
-// Assuming LastMessage is defined elsewhere and is correct
-// data class LastMessage(
-//     var text: String? = null,
-//     var timestamp: Long? = null,
-//     var senderName: String? = null,
-//     var senderId: String? = null, // Good to have
-//     var messageType: String? = null // e.g., "text", "image"
-// )
+import com.example.synapse.Message
+import com.google.firebase.database.Exclude // Import Exclude
 
 data class Group(
     var id: String = "",
     var name: String = "",
     var description: String? = null,
-    var lastMessage: LastMessage? = null,
-    var unreadCount: Int = 0,
-    var memberIds: List<String> = emptyList(),
+    // var memberIds: List<String> = emptyList(), // OLD
+    var members: Map<String, Boolean> = emptyMap(), // NEW: Changed to Map
+    var createdBy: String? = null,
+    var timestamp: Long? = null,
 
-    // --- ADD THESE FIELDS ---
-    var createdBy: String? = null,         // To store the UID of the user who created the group
-    var timestamp: Long? = null    // To store the server timestamp when the group was created
+    var lastMessage: Message? = null,
+    var lastMessageTimestamp: Long? = null,
+
+    // These fields are often client-side derived or handled with specific logic,
+    // ensure they are correctly excluded if not directly stored under the group node
+    // or if their structure in DB is different.
+    // If unreadCount and hasUnreadMessagesFromOthers are NOT directly under the group node
+    // in this exact form, they should be excluded from Firebase direct mapping.
+    @get:Exclude
+    var unreadCount: Int = 0,
+    @get:Exclude
+    var hasUnreadMessagesFromOthers: Boolean = false
 ) {
-    // Update the no-arg constructor to include defaults for the new fields
+    // No-argument constructor for Firebase deserialization
     constructor() : this(
         id = "",
         name = "",
         description = null,
+        members = emptyMap(), // Updated
+        createdBy = null,
+        timestamp = null,
         lastMessage = null,
-        unreadCount = 0,
-        memberIds = emptyList(),
-        createdBy = null,          // Default for new field
-        timestamp = null   // Default for new field
+        lastMessageTimestamp = null
+        // unreadCount and hasUnreadMessagesFromOthers are excluded, so not in primary constructor for Firebase
     )
+
+    // Helper to get member UIDs if needed, derived from the map
+    @Exclude
+    fun getMemberIdList(): List<String> {
+        return members.keys.toList()
+    }
 }

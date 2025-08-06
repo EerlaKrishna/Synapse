@@ -15,57 +15,64 @@
     app:cardUseCompatPadding="false"
     android:clickable="true"
     android:focusable="true"
-    android:foreground="?android:attr/selectableItemBackground"> <!-- Add ripple effect to the card -->
+    android:foreground="?android:attr/selectableItemBackground">
 
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp">
-        <!-- Removed: android:background="?android:attr/selectableItemBackground"
-             The foreground on CardView handles this better. -->
 
-        <!-- You can add an ImageView for a group icon here if you have one -->
-        <!-- <ImageView
-            android:id="@+id/group_icon_image_view"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_alignParentStart="true"
-            android:layout_centerVertical="true"
-            android:layout_marginEnd="16dp"
-            tools:srcCompat="@tools:sample/avatars" /> -->
+        <!-- NEW: Dot Indicator -->
+        <!-- Positioned to the left of unread_count_text_view or in its place if unread_count is hidden -->
+        <ImageView
+            android:id="@+id/unread_dot_indicator"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:src="@drawable/ic_unread_dot"
+            android:layout_alignTop="@id/last_message_text_view"
+            android:layout_alignBottom="@id/last_message_text_view"
+            android:layout_alignParentEnd="true"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone"
+            tools:visibility="visible"
+            android:contentDescription="@string/unread_indicator_description" /> <!-- Add content description -->
+
 
         <TextView
             android:id="@+id/group_name_text_view"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_toStartOf="@id/timestamp_text_view"
             android:layout_alignParentStart="true"
+            android:layout_marginEnd="8dp"
             android:textSize="18sp"
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end"
-            tools:text="Group Name Example" />
+            tools:text="Very Long Group Name Example That Might Overlap" />
 
         <TextView
             android:id="@+id/last_message_text_view"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/group_name_text_view"
             android:layout_alignParentStart="true"
-            android:layout_toStartOf="@id/unread_count_text_view"
+            android:layout_toStartOf="@id/unread_dot_indicator"
+            android:layout_marginEnd="8dp"
             android:layout_marginTop="4dp"
             android:maxLines="1"
             android:ellipsize="end"
-            tools:text="Sender: This is the last message snippet..." />
+            tools:text="Sender: This is the last message snippet..."
+            tools:textStyle="bold"/> <!-- tools:textStyle for preview -->
 
-        <!-- NEW TEXTVIEW FOR MESSAGE TYPE -->
         <TextView
             android:id="@+id/message_type_text_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/last_message_text_view"
             android:layout_alignParentStart="true"
-            android:layout_toStartOf="@id/unread_count_text_view"
+            android:layout_toStartOf="@id/unread_dot_indicator"
+            android:layout_marginEnd="8dp"
             android:layout_marginTop="2dp"
             android:textSize="12sp"
             android:textStyle="italic"
@@ -82,6 +89,7 @@
             android:textSize="12sp"
             tools:text="10:30 AM" />
 
+        <!-- Optional: Unread Count Badge (you might hide this if the dot is shown) -->
         <TextView
             android:id="@+id/unread_count_text_view"
             android:layout_width="wrap_content"

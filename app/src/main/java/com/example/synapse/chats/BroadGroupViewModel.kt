@@ -1,11 +1,13 @@
 package com.example.synapse.chats
 
 import android.app.Application
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.viewModelScope // Keep this if other methods use it
+import com.example.synapse.AppConfig
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
@@ -13,20 +15,25 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
-import kotlinx.coroutines.launch // Keep this if other methods use it
-
-
+import org.json.JSONObject
 
 class BroadGroupViewModel(application: Application) : AndroidViewModel(application) {
 
-    // This LiveData will be populated by the ValueEventListener for real-time updates
-    // with denormalized last message info. This is what your Fragment should observe
-    // for the main list display.
     private val _groups = MutableLiveData<List<Group>>()
     val groups: LiveData<List<Group>> = _groups
 
+    private val _isAdmin = MutableLiveData<Boolean>()
+    val isAdmin: LiveData<Boolean> = _isAdmin
+
     private val _error = MutableLiveData<String?>()
     val error: LiveData<String?> = _error
+
+    // --- SharedPreferences for Unread State Persistence ---
+    private val prefs: SharedPreferences by lazy {
+        application.getSharedPreferences("unread_group_states", Context.MODE_PRIVATE)
+    }
+    private val PREF_KEY_CHAT_ITEMS = "chat_items_map_data"
+    // --- End SharedPreferences ---
 
     private val database = Firebase.database.reference
     // IMPORTANT: Use the correct path to your list of channels/groups in Firebase
@@ -52,149 +59,313 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         Log.d(TAG, "VM: ViewModel initialized. Attaching listeners.")
+        checkCurrentUserAdminStatus() // Check admin status on init
+        loadChatItemsMapFromPrefs()
         attachChannelsListener() // Start listening for real-time group updates for the main list
+
         // If you still need to initialize `currentChatItemsMap` for other purposes,
         // you might call a method here or it might be populated by other events.
     }
 
-    // In BroadGroupViewModel.kt
+    // --- Function to check and update admin status ---
+    fun checkCurrentUserAdminStatus() {
+        val firebaseUser = firebaseAuth.currentUser // Use the existing firebaseAuth instance
+        if (firebaseUser != null) {
+            val isCurrentUserAdmin = AppConfig.ADMIN_UIDS.contains(firebaseUser.uid)
+            _isAdmin.postValue(isCurrentUserAdmin)
+            Log.d(TAG, "VM: Current user UID: ${firebaseUser.uid}, Is Admin: $isCurrentUserAdmin")
+        } else {
+            _isAdmin.postValue(false) // No user logged in, so not an admin
+            Log.d(TAG, "VM: No user logged in, cannot determine admin status.")
+        }
+    }
+    // --- End Function to check admin status ---
 
-    // In BroadGroupViewModel.kt
+    // --- Add this method ---
+    fun onGroupCreatedEventHandled() {
+        _groupCreatedEvent.value = null
+    }
 
+    private fun getPrefKeyForCurrentUser(): String? {
+        val currentUserId = firebaseAuth.currentUser?.uid
+        return if (currentUserId != null) {
+            "chat_items_map_data_$currentUserId"
+        } else {
+            null // Or handle as an error, though returning null is safer for conditional checks
+        }
+    }
+    // --- Persistence Logic for currentChatItemsMap ---
+    private fun loadChatItemsMapFromPrefs() {
+        val prefKey = getPrefKeyForCurrentUser()
+        if (prefKey == null) {
+            Log.w(TAG, "VM: Cannot load chat items from prefs, user not logged in or key generation failed.")
+            currentChatItemsMap.clear() // Ensure map is clear
+            return
+        }
+
+        val jsonString = prefs.getString(prefKey, null)
+        if (jsonString != null) {
+            try {
+                val jsonObject = JSONObject(jsonString)
+                val tempMap = mutableMapOf<String, ChatListItem>()
+                jsonObject.keys().forEach { parsedGroupId -> // Renamed to avoid confusion with ChatListItem.groupId
+                    val itemJson = jsonObject.getJSONObject(parsedGroupId)
+
+                    val chatListItem = ChatListItem() // Use the no-argument constructor
+                    chatListItem.groupId = parsedGroupId // Set the groupId property
+                    chatListItem.groupName = itemJson.optString("groupName", "Group $parsedGroupId")
+                    chatListItem.unreadCount = itemJson.optInt("unreadCount", 0)
+                    chatListItem.lastMessageTimestampProcessedForUnread = itemJson.optLong("lastMessageTimestampProcessedForUnread", 0L)
+                    chatListItem.lastMessageText = itemJson.optString("lastMessageText", null)
+                    chatListItem.lastMessageTimestamp = itemJson.optLong("lastMessageTimestamp", 0L)
+                    // Your ChatListItem has lastMessageSenderName, not lastMessageSenderId
+                    chatListItem.lastMessageSenderName = itemJson.optString("lastMessageSenderName", null)
+
+                    tempMap[parsedGroupId] = chatListItem
+                }
+                currentChatItemsMap.clear()
+                currentChatItemsMap.putAll(tempMap)
+                Log.i(TAG, "VM: Loaded ${currentChatItemsMap.size} chat items from SharedPreferences for key $prefKey.")
+            } catch (e: Exception) {
+                Log.e(TAG, "VM: Error loading chat items from SharedPreferences for key $prefKey", e)
+                currentChatItemsMap.clear()
+            }
+        } else {
+            Log.i(TAG, "VM: No saved chat items found in SharedPreferences for key $prefKey.")
+            currentChatItemsMap.clear()
+        }
+    }
+
+
+    private fun saveChatItemsMapToPrefs() {
+        val prefKey = getPrefKeyForCurrentUser()
+        if (prefKey == null) {
+            Log.w(TAG, "VM: Cannot save chat items to prefs, user not logged in or key generation failed.")
+            return
+        }
+
+        val jsonObject = JSONObject()
+        currentChatItemsMap.forEach { (mapGroupId, chatListItem) -> // mapGroupId is the key from the map
+            val itemJson = JSONObject()
+            // Use chatListItem.groupId if it's guaranteed to be the same as mapGroupId,
+            // otherwise, it's safer to use mapGroupId as the key for the JSON object.
+            // For consistency, let's assume chatListItem.groupId is correctly populated.
+
+            itemJson.put("groupName", chatListItem.groupName)
+            itemJson.put("unreadCount", chatListItem.unreadCount)
+            itemJson.put("lastMessageTimestampProcessedForUnread", chatListItem.lastMessageTimestampProcessedForUnread)
+            itemJson.put("lastMessageText", chatListItem.lastMessageText)
+            itemJson.put("lastMessageTimestamp", chatListItem.lastMessageTimestamp)
+            // Your ChatListItem has lastMessageSenderName
+            itemJson.put("lastMessageSenderName", chatListItem.lastMessageSenderName)
+
+            jsonObject.put(chatListItem.groupId, itemJson) // Use chatListItem.groupId as the key in JSON
+        }
+        try {
+            prefs.edit().putString(prefKey, jsonObject.toString()).apply()
+            Log.d(TAG, "VM: Saved ${currentChatItemsMap.size} chat items to SharedPreferences for key $prefKey.")
+        } catch (e: Exception) {
+            Log.e(TAG, "VM: Error saving chat items to SharedPreferences for key $prefKey", e)
+        }
+    }
+
+    // Your existing attachChannelsListener (from previous context)
     private fun attachChannelsListener() {
         channelsValueEventListener = channelsRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                Log.d(TAG, "VM: attachChannelsListener - onDataChange triggered. Snapshot value: ${snapshot.value}")
-                val newGroups = mutableListOf<Group>()
+                Log.d(TAG, "VM: attachChannelsListener - onDataChange triggered. Path: ${snapshot.ref}")
+                val newGroupsFromFirebase = mutableListOf<Group>()
+                val currentUserId = firebaseAuth.currentUser?.uid
                 var errorOccurredInLoop = false
 
                 if (!snapshot.exists() || !snapshot.hasChildren()) {
-                    Log.d(TAG, "VM: No channels data found or snapshot is empty.")
-                    _groups.postValue(emptyList()) // Post empty list if no data
+                    Log.w(TAG, "VM: No channels data found or snapshot is empty at ${snapshot.ref}.")
+                    _groups.postValue(emptyList())
+
+                    // If Firebase says no groups, our local unread state for any group is now irrelevant.
+                    // Clear the map and persist this cleared state.
+                    if (currentChatItemsMap.isNotEmpty()) {
+                        Log.d(TAG, "VM: Clearing local chat items map as Firebase has no groups.")
+                        currentChatItemsMap.clear()
+                        saveChatItemsMapToPrefs() // Persist the cleared state
+                    }
+                    _chatList.postValue(emptyList())
                     return
                 }
 
+                val groupIdsFromFirebase = mutableSetOf<String>() // To track active groups
+
                 snapshot.children.forEach { groupSnapshot ->
                     val groupId = groupSnapshot.key
-                    Log.d(TAG, "VM: Processing groupSnapshot for ID: $groupId. Value: ${groupSnapshot.value}")
-
                     if (groupId == null) {
                         Log.e(TAG, "VM: groupSnapshot key (groupId) is null. Skipping.")
-                        return@forEach // continue to next iteration
+                        return@forEach
                     }
+                    groupIdsFromFirebase.add(groupId) // Add to our set of active groups
 
-                    // Attempt to automatically map the entire groupSnapshot to the Group data class
-                    // This relies on your Group and LastMessage data classes matching Firebase structure.
                     val group = groupSnapshot.getValue(Group::class.java)
-
                     if (group == null) {
-                        Log.e(TAG, "VM: Failed to parse Group object for ID: $groupId. Snapshot value: ${groupSnapshot.value}. Check Group data class structure and Firebase data.")
+                        Log.e(TAG, "VM: Failed to parse Group for ID: $groupId. Check data class. Value: ${groupSnapshot.value}")
                         errorOccurredInLoop = true
-                        return@forEach // continue to next iteration
+                        return@forEach
+                    }
+                    group.id = groupId // Ensure ID is set
+
+                    // --- Start: Logic integrated from publishChatListUpdates for _groups ---
+                    // Retrieve the ChatListItem from our (now persisted and loaded) map
+                    val chatListItem = currentChatItemsMap[group.id]
+
+                    // If a group from Firebase doesn't have a corresponding ChatListItem,
+                    // it means it's a new group never seen before by this client, or its state wasn't persisted.
+                    // We should create a default ChatListItem for it in memory.
+                    // It won't be saved to prefs here; saving happens on message update or markAsRead.
+                    if (chatListItem == null) {
+                        Log.d(TAG, "VM: No ChatListItem found for group $groupId from Firebase. Creating a default in-memory item.")
+                        val newDefaultItem = ChatListItem(
+                            groupId = group.id,
+                            groupName = group.name,
+                            lastMessageText = group.lastMessage?.text,
+                            lastMessageTimestamp = group.lastMessage?.timestamp ?: 0L,
+                            lastMessageSenderName = group.lastMessage?.senderName, // Or derive if needed
+                            unreadCount = 0, // Default to 0, will be updated by messages
+                            lastMessageTimestampProcessedForUnread = 0L // Default
+                        )
+                        currentChatItemsMap[group.id] = newDefaultItem // Add to map for current session
+                        // Note: This default item is NOT saved to prefs here. It will be saved if
+                        // updateGroupWithMessage or markGroupAsRead is called for this group.
                     }
 
-                    group.id = groupId // Ensure ID is set from the key, as getValue() won't populate it from the key
+                    // Now, use the (potentially just created default or loaded from prefs) chatListItem
+                    val finalUnreadCount = currentChatItemsMap[group.id]?.unreadCount ?: 0
 
-                    // Log the automatically parsed group, including the nested lastMessage
-                    // The Group's toString() method (default for data classes) will show its properties.
-                    Log.d(TAG, "VM: Successfully parsed Group for ID: $groupId. Group data: $group")
-                    Log.d(TAG, "VM: Parsed LastMessage for group $groupId: ${group.lastMessage}")
+                    val isLastMsgFromAnother = group.lastMessage?.senderId != null &&
+                            group.lastMessage?.senderId != currentUserId
+                    val finalHasUnreadFromOthers = (finalUnreadCount > 0) && isLastMsgFromAnother
 
+                    // Update the group object directly with unread info
+                    group.unreadCount = finalUnreadCount
+                    group.hasUnreadMessagesFromOthers = finalHasUnreadFromOthers
+                    // --- End: Logic integrated from publishChatListUpdates for _groups ---
 
-                    // --- Unread Count Logic ---
-                    // This part remains the same, assuming currentChatItemsMap is still how you
-                    // track unread counts separately or augment the Group object.
-                    val chatListItem = currentChatItemsMap[groupId] // Assuming currentChatItemsMap is up-to-date
-                    group.unreadCount = chatListItem?.unreadCount ?: 0
-                    Log.d(TAG, "VM: Group ID: $groupId, Unread count set to: ${group.unreadCount}")
-                    // --- End Unread Count Logic ---
+                    Log.d(TAG, "VM: Processed Group ID ${group.id}: Name='${group.name}', " +
+                            "LastMsg='${group.lastMessage?.text}', TS='${group.lastMessage?.timestamp}', " +
+                            "Unread=${group.unreadCount}, HasUnreadOthers=${group.hasUnreadMessagesFromOthers}")
 
-                    newGroups.add(group)
+                    newGroupsFromFirebase.add(group)
                 }
 
                 if (errorOccurredInLoop) {
-                    // You might want to decide if you post partial data or an error state.
-                    // For now, it posts whatever was successfully parsed.
-                    _error.postValue("Error parsing some group data. Check logs for details.")
+                    _error.postValue("Error parsing some group data. Check logs.")
                 }
 
-                // Sort by the timestamp within the nested lastMessage object.
-                // Handle cases where lastMessage or its timestamp might be null.
-                val sortedGroups = newGroups.sortedByDescending { it.lastMessage?.timestamp ?: 0L }
+                // --- Handle groups that were in currentChatItemsMap but are no longer in Firebase ---
+                val groupIdsToRemoveFromMap = currentChatItemsMap.keys.filterNot { it in groupIdsFromFirebase }
+                if (groupIdsToRemoveFromMap.isNotEmpty()) {
+                    var mapChangedDueToRemoval = false
+                    groupIdsToRemoveFromMap.forEach { groupIdToRemove ->
+                        Log.d(TAG, "VM: Removing ChatListItem for group ID '$groupIdToRemove' as it's no longer in Firebase.")
+                        currentChatItemsMap.remove(groupIdToRemove)
+                        mapChangedDueToRemoval = true
+                    }
+                    if (mapChangedDueToRemoval) {
+                        saveChatItemsMapToPrefs() // Persist changes if items were removed
+                    }
+                }
+                // --- End handling removed groups ---
 
-                Log.d(TAG, "VM: Posting ${sortedGroups.size} groups to _groups LiveData. First group in sorted list (if any): ${sortedGroups.firstOrNull()}")
+
+                val sortedGroups = newGroupsFromFirebase.sortedByDescending { it.lastMessage?.timestamp ?: 0L }
+
+                Log.i(TAG, "VM: Posting ${sortedGroups.size} groups to _groups. First: ${sortedGroups.firstOrNull()?.name}, LastMsg: ${sortedGroups.firstOrNull()?.lastMessage?.text}")
                 _groups.postValue(sortedGroups)
+
+                // --- Update _chatList separately ---
+                // This ensures _chatList is also up-to-date with the potentially modified currentChatItemsMap
+                // (e.g., new default items added, or items removed).
+                publishChatListUpdates() // This will sort and post currentChatItemsMap.values
             }
 
             override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "VM: Firebase listener for channels cancelled: ${error.message}")
+                Log.e(TAG, "VM: Firebase listener for channels cancelled: ${error.message} at ${channelsRef}", error.toException())
                 _error.postValue("Failed to load group data: ${error.message}")
             }
         })
     }
 
-    // Add this function inside BroadGroupViewModel class
-
-    // Inside your BroadGroupViewModel class:
-
+    // Ensure publishChatListUpdates uses the current state of currentChatItemsMap
+    fun publishChatListUpdates() {
+        val sortedChatListItems = currentChatItemsMap.values.toList()
+            .sortedByDescending { it.lastMessageTimestamp }
+        Log.d(TAG, "VM: Publishing _chatList updates. Count: ${sortedChatListItems.size}.")
+        _chatList.postValue(sortedChatListItems)
+    }
 // Make sure this LiveData is defined if you want to signal creation success to the UI
 // private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>>()
 // val groupCreatedEvent: LiveData<Pair<String, String?>> = _groupCreatedEvent
 
-    fun createNewGroup(groupName: String, creatorId: String, description: String? = null) {
-        Log.d(TAG, "VM: createNewGroup called. Name: $groupName, Creator: $creatorId")
+    // In BroadGroupViewModel.kt
 
-        // IMPORTANT: Use the SAME Firebase reference that your listener is attached to.
-        // This should be 'channelsRef' if that's what 'attachChannelsListener' uses.
-        val refForNewGroup = channelsRef // Or 'groupsRef' if you renamed it consistently
+// Make sure this LiveData is defined if you want to signal creation success to the UI
+// private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>>() // Pair of <groupId, groupName>
+// val groupCreatedEvent: LiveData<Pair<String, String?>> = _groupCreatedEvent
 
-        val newGroupId = refForNewGroup.push().key
+    fun createNewGroup(
+        groupName: String,
+        creatorId: String, // This MUST be one of the hardcoded admin UIDs for the write to succeed
+        description: String? = null,
+        memberIdsFromDialog: List<String> // Renamed to clarify origin
+    ) {
+        Log.d(
+            TAG,
+            "VM: createNewGroup called. Name: $groupName, Creator: $creatorId, Initial Members from Dialog: $memberIdsFromDialog"
+        )
+
+        // Using 'channelsRef' as per your comment, assuming it's the correct ref for channels/groups
+        val newGroupId = channelsRef.push().key
 
         if (newGroupId == null) {
-            _error.postValue("Couldn't get a unique ID for the new group.")
+            _error.postValue("Couldn't get a unique ID for the new channel.")
             Log.e(TAG, "VM: createNewGroup - Firebase push key was null.")
             return
         }
 
-        // Creator is the first member
-        val initialMembers = listOf(creatorId)
+        // For admin-created public channels, initially, memberIds might be empty or just include the creator.
+        // The current dialog sends an empty list for memberIdsFromDialog.
+        // Adding the creator to memberIds by default is a common pattern.
+        val initialMemberIdsForFirebase = (memberIdsFromDialog + creatorId).distinct()
+       // val membersMap = initialMemberIdsForFirebase.associateWith { true }
+
+        Log.d(TAG, "VM: Final members map for new channel '$newGroupId': $initialMemberIdsForFirebase")
 
         val groupData = mapOf(
             "id" to newGroupId,
             "name" to groupName,
-            "description" to description, // This will be null in Firebase if description is null
-            "memberIds" to listOf(creatorId), // Add creator as the first member
-            "lastMessage" to null, // Explicitly null for a new group
-            "unreadCount" to 0,
-            "createdBy" to creatorId,
-            "timestamp" to ServerValue.TIMESTAMP// Use Firebase ServerValue.TIMESTAMP
+            "description" to description, // Will be omitted if null due to mapOfNotNull
+            "memberIds" to initialMemberIdsForFirebase,    // Store as map { "uid1": true, "uid2": true }
+            "lastMessage" to null,        // Explicitly null for a new channel, can be omitted too
+            "createdBy" to creatorId,     // Crucial: This UID must be in the admin list in rules
+            "timestamp" to ServerValue.TIMESTAMP
+            // "unreadCount" is not typically set at channel creation.
         )
 
-        // Save the new group object under the generated key
         channelsRef.child(newGroupId).setValue(groupData)
             .addOnSuccessListener {
-                Log.i(TAG, "VM: New group '$groupName' successfully created in Firebase with ID: $newGroupId")
-                // Your existing 'attachChannelsListener' (or 'attachGroupsListener')
-                // should automatically detect this new group and update the '_groups' LiveData.
-
-                // Optionally, post an event if the UI needs to react immediately
-                // (e.g., navigate to the new group, clear input fields).
+                Log.i(
+                    TAG,
+                    "VM: New channel '$groupName' successfully created in Firebase with ID: $newGroupId by $creatorId"
+                )
+                // If _groupCreatedEvent is used, post to it. Example:
                 // _groupCreatedEvent.postValue(Pair(newGroupId, groupName))
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "VM: Failed to create new group '$groupName' in Firebase.", e)
-                _error.postValue("Failed to create group: ${e.message}")
+                Log.e(
+                    TAG,
+                    "VM: Failed to create new channel '$groupName' in Firebase. Error: ${e.message}",
+                    e
+                )
+                _error.postValue("Failed to create channel: ${e.message}")
             }
     }
-
-
-    // --- Your existing ChatListItem management methods ---
-    // These methods (initializeOrUpdateGroups, updateGroupWithMessage, markGroupAsRead, publishChatListUpdates, clearAllData)
-    // will continue to update `currentChatItemsMap` and `_chatList`.
-    // The `attachChannelsListener` will now also try to pick up `unreadCount` from `currentChatItemsMap`.
-    // For this to be perfectly in sync, `publishChatListUpdates` might also need to trigger a re-evaluation
-    // or re-fetch for `_groups` or you ensure that any change in `currentChatItemsMap` that affects unread count
-    // also triggers a new emission of `_groups` if `attachChannelsListener` doesn't pick it up immediately.
 
     fun initializeOrUpdateGroups(groupsData: List<GroupData>) {
         val currentUserId = firebaseAuth.currentUser?.uid
@@ -239,20 +410,6 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
             Log.d(TAG, "VM: List changed during group initialization/update. Publishing ChatListItem updates.")
             publishChatListUpdates() // This updates _chatList
 
-            // **Important for UI consistency with _groups LiveData:**
-            // If `_groups` is the primary source for your RecyclerView, and unread counts
-            // from `currentChatItemsMap` are important for that display, you might need
-            // to trigger a re-evaluation of `_groups` here or ensure `attachChannelsListener`
-            // picks up the changes.
-            // A simple way to force `_groups` to re-evaluate with potentially updated unread counts
-            // from `currentChatItemsMap` is to re-post its current value, or re-fetch if necessary.
-            // However, the current `attachChannelsListener` already merges unread counts.
-            // If `publishChatListUpdates` changes unread counts, the next time `attachChannelsListener`
-            // fires (due to a Firebase data change), it will pick up the new unread counts.
-            // For immediate reflection, you might consider:
-            // 1. Having `publishChatListUpdates` also trigger a refresh of `_groups` data.
-            // 2. Modifying `attachChannelsListener` to be callable on demand to refresh `_groups`.
-            // For now, the unread count in `_groups` will update when Firebase data changes.
         } else {
             Log.d(TAG, "VM: No ChatListItem changes during group initialization/update required publishing.")
         }
@@ -350,25 +507,8 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
 
         if (itemChangedOverall) {
             Log.d(TAG, "VM: Overall ChatListItem changed for '$groupId'. Publishing ChatListItem updates.")
+            saveChatItemsMapToPrefs()
             publishChatListUpdates() // This updates _chatList
-
-            // **Important for UI consistency with _groups LiveData:**
-            // If the unread count in `currentChatItemsMap` was modified, and your UI
-            // (observing `_groups`) needs to reflect this change immediately without waiting
-            // for the next Firebase data event, you might need to trigger a manual refresh
-            // of the `_groups` LiveData.
-            // One way is to make `attachChannelsListener` re-fetch or re-process.
-            // A simpler, though less efficient way if done too often, is to re-post the current
-            // list to `_groups` after updating its items with new unread counts.
-            // Example (if you need immediate unread count updates in the `_groups` list):
-            // val currentGroups = _groups.value?.map { group ->
-            //     currentChatItemsMap[group.id]?.let { chatListItem ->
-            //         group.copy(unreadCount = chatListItem.unreadCount)
-            //     } ?: group
-            // }
-            // _groups.postValue(currentGroups)
-            // However, the current setup in `attachChannelsListener` will pick up the unread count
-            // from `currentChatItemsMap` whenever it processes data. This might be sufficient.
 
         } else {
             Log.d(TAG, "VM: No overall ChatListItem changes detected for '$groupId' that require publishing.")
@@ -376,62 +516,88 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
         Log.d(TAG, "VM updateGroupWithMessage: END - GroupID='${groupId}'")
     }
 
+    // In BroadGroupViewModel.kt
+
     fun markGroupAsRead(groupId: String) {
-        val currentUserId = firebaseAuth.currentUser?.uid
+        val currentUserId = firebaseAuth.currentUser?.uid // For logging or additional checks if needed
         Log.d(TAG, "VM: markGroupAsRead called for ChatListItem GroupID='${groupId}'. CurrentUser: $currentUserId")
+
+        // It's better to operate on the item from currentChatItemsMap directly
+        // and then update LiveData if necessary.
         currentChatItemsMap[groupId]?.let { item ->
+            // Determine the timestamp to mark as "processed up to".
+            // This should ideally be the timestamp of the actual last message in the group.
+            // Fetching from _groups.value is one way, but ensure _groups is up-to-date.
+            // If _groups might not be perfectly synced, item.lastMessageTimestamp is a fallback.
+            val groupFromLiveData = _groups.value?.find { it.id == groupId }
+            val latestTimestampToProcess = groupFromLiveData?.lastMessage?.timestamp ?: item.lastMessageTimestamp
+
+            var itemChanged = false
+
             if (item.unreadCount > 0) {
                 item.unreadCount = 0
-                item.lastMessageTimestampProcessedForUnread = item.lastMessageTimestamp // Important for future unread logic
-                Log.d(TAG, "VM: Marked ChatListItem '$groupId' as read. Unread set to 0. LastProcessedTS set to ${item.lastMessageTimestamp}. Publishing ChatListItem updates.")
-                publishChatListUpdates() // This updates _chatList
-
-                // See comment in updateGroupWithMessage about potentially refreshing _groups
-                // if immediate reflection of unreadCount = 0 is needed in the UI observing `_groups`.
-            } else {
-                Log.d(TAG, "VM: ChatListItem '$groupId' already has 0 unread messages. No changes made.")
+                itemChanged = true
+                Log.d(TAG, "VM: ChatListItem '$groupId' unreadCount set to 0.")
             }
-        } ?: Log.d(TAG, "VM: markGroupAsRead: ChatListItem GroupID='$groupId' not found in map.")
+
+            // Always update lastMessageTimestampProcessedForUnread to the latest known message timestamp
+            // when marking as read, to prevent old messages from reappearing as unread.
+            if (latestTimestampToProcess > item.lastMessageTimestampProcessedForUnread) {
+                item.lastMessageTimestampProcessedForUnread = latestTimestampToProcess
+                itemChanged = true
+                Log.d(TAG, "VM: ChatListItem '$groupId' lastMessageTimestampProcessedForUnread updated to $latestTimestampToProcess.")
+            } else if (item.unreadCount == 0 && latestTimestampToProcess < item.lastMessageTimestampProcessedForUnread) {
+                // This case could happen if groupFromLiveData was stale and pointed to an older message
+                // than what was already processed. Generally, we only want to move this timestamp forward.
+                // However, if we are explicitly marking as read, and the latest known message is older,
+                // it might be okay, but it's a bit of an edge case.
+                // For now, we primarily care about moving it forward or setting unread to 0.
+            }
+
+
+            if (itemChanged) {
+                Log.d(TAG, "VM: Marked ChatListItem '$groupId' as read. Unread set to ${item.unreadCount}. LastProcessedTS set to ${item.lastMessageTimestampProcessedForUnread}.")
+
+                saveChatItemsMapToPrefs() // <--- CALL SAVE HERE
+
+                // Explicitly update _groups LiveData
+                _groups.value?.let { currentGroups ->
+                    val updatedGroups = currentGroups.map { group ->
+                        if (group.id == groupId) {
+                            // 'item' is the updated chatListItem from currentChatItemsMap
+                            val finalUnreadCount = item.unreadCount // Should be 0 now
+                            val isLastMsgFromAnother = group.lastMessage?.senderId != null &&
+                                    group.lastMessage?.senderId != currentUserId
+                            // finalHasUnreadFromOthers should be false because finalUnreadCount is 0
+                            val finalHasUnreadFromOthers = (finalUnreadCount > 0) && isLastMsgFromAnother
+
+                            group.copy(
+                                unreadCount = finalUnreadCount, // Will be 0
+                                hasUnreadMessagesFromOthers = finalHasUnreadFromOthers // Will be false
+                            )
+                        } else {
+                            group
+                        }
+                    }.sortedByDescending { it.lastMessage?.timestamp ?: 0L } // Keep the list sorted
+                    _groups.postValue(updatedGroups)
+                    Log.d(TAG, "VM: Refreshed _groups after markGroupAsRead for ID $groupId with unread: ${item.unreadCount}.")
+                }
+
+                // Update _chatList as well
+                publishChatListUpdates()
+
+            } else {
+                Log.d(TAG, "VM: ChatListItem '$groupId' already has 0 unread messages or no newer messages to process as read. No changes made to ChatListItem.")
+                // Even if no direct change to ChatListItem's unread count,
+                // if _groups was out of sync, you might still want to refresh it.
+                // However, the logic above should handle the primary cases.
+            }
+        } ?: Log.w(TAG, "VM: markGroupAsRead: ChatListItem GroupID='$groupId' not found in map.")
     }
 
     // This method is specific to the ChatListItem system.
     fun getChatListItem(groupId: String): ChatListItem? {
         return currentChatItemsMap[groupId]
-    }
-
-    // In BroadGroupViewModel.kt
-
-    private fun publishChatListUpdates() {
-        // Sorts and posts updates to _chatList (the LiveData for ChatListItems)
-        // _chatList is presumably a List<ChatListItem>, and ChatListItem still has direct lastMessageTimestamp
-        val sortedChatListItems = currentChatItemsMap.values.toList().sortedByDescending { it.lastMessageTimestamp }
-        Log.d(TAG, "VM: Publishing _chatList updates. Count: ${sortedChatListItems.size}. Items: ${sortedChatListItems.joinToString { it.groupId + " (Unread:" + it.unreadCount + ", TS:" + it.lastMessageTimestamp + ")" }}")
-        _chatList.postValue(sortedChatListItems)
-
-        // If _groups is the primary display list and needs to reflect unread count changes from
-        // currentChatItemsMap immediately, you might trigger a refresh here.
-        // The `attachChannelsListener` (which you've updated) will now get the lastMessage details
-        // directly from Firebase, including its timestamp.
-        // This section is primarily for syncing unreadCount from currentChatItemsMap to the _groups LiveData.
-
-        _groups.value?.let { currentGroupList ->
-            val updatedGroupList = currentGroupList.map { group ->
-                currentChatItemsMap[group.id]?.let { chatListItem ->
-                    // Create a new Group object with the updated unreadCount.
-                    // The lastMessage object within the group remains as it was from Firebase.
-                    group.copy(unreadCount = chatListItem.unreadCount)
-                } ?: group // If no corresponding ChatListItem, keep the group as is.
-            }
-                // Re-sort the _groups list based on its lastMessage.timestamp,
-                // as the unread count change doesn't affect sorting order here,
-                // but it's good practice if other modifications could.
-                // If attachChannelsListener is the sole source of truth for lastMessage details,
-                // this re-sort might even use the existing group.lastMessage.timestamp.
-                .sortedByDescending { it.lastMessage?.timestamp ?: 0L } // MODIFIED HERE
-
-            _groups.postValue(updatedGroupList)
-            Log.d(TAG, "VM: Refreshed _groups with updated unread counts from currentChatItemsMap and re-sorted.")
-        }
     }
 
     fun clearAllData() {

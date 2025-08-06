@@ -17,7 +17,7 @@
     <string name="button_send">SEND</string>
     <string name="default_anonymous_user_name">Ananymous</string>
     <string name="search_groups_hint">Search groups...</string>
-
+    <string name="unread_indicator_description">Unread message indicator</string>
     <string name="no_groups_placeholder">No groups yet. Tap the + button to create one!</string>
     <string name="no_search_results_placeholder">No groups found matching your search.</string>
     <string name="default_channel_name">Channel</string>
@@ -29,4 +29,14 @@
     <string name="error_user_not_identified">User not identified. Please log in again.</string>
     <string name="message_empty_cannot_send">Message cannot be empty.</string>
     <string name="button_send_description">Send message</string>
-</resources>
+
+
+
+
+
+        <string name="create_new_group_dialog_title">Create New Group</string>
+        <string name="create_button_text">Create</string>
+        <string name="cancel_button_text">Cancel</string>
+        <string name="error_user_not_authenticated">Error: User not authenticated.</string>
+        <string name="error_group_name_cannot_be_empty">Group name cannot be empty.</string>
+       </resources>

@@ -29,7 +29,7 @@
         app:layout_constraintTop_toBottomOf="@id/textViewLoginTitle"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:hint="Email">
+        android:hint="Employee Code / Email">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/emailEditText"
@@ -72,21 +72,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:cornerRadius="8dp"/>
 
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/textViewRegisterLink"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Don't have an account? Register here"
-        android:textAppearance="?attr/textAppearanceBody2"
-        android:textColor="?attr/colorPrimary"
-        android:padding="8dp"
-        android:layout_marginTop="24dp"
-        app:layout_constraintTop_toBottomOf="@id/loginButton"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:clickable="true"
-        android:focusable="true"
-        android:background="?attr/selectableItemBackground"/>
+    <!-- Registration Link TextView has been removed -->
 
     <com.google.android.material.progressindicator.CircularProgressIndicator
         android:id="@+id/progressBarLogin"

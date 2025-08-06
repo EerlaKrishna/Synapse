@@ -1,54 +1,70 @@
 package com.example.synapse.chats
 
-
 import android.app.Dialog
 import android.os.Bundle
+import android.util.Log
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
-import com.example.synapse.R
+import androidx.navigation.activity
+import com.example.synapse.R // Make sure this import is correct
 import com.google.firebase.auth.FirebaseAuth
 
 class CreateGroupDialogFragment : DialogFragment() {
 
-    // Use activityViewModels to share ViewModel with BroadGroupFragment and underlying Activity
     private val broadGroupViewModel: BroadGroupViewModel by activityViewModels()
+    private val firebaseAuth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+
+    companion object {
+        private const val TAG = "CreateGroupDialog"
+    }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         return activity?.let { currentActivity ->
             val builder = AlertDialog.Builder(currentActivity)
             val inflater = currentActivity.layoutInflater
-            val dialogView = inflater.inflate(R.layout.dialog_create_group, null)
+            val dialogView = inflater.inflate(R.layout.dialog_create_group, null) // Your provided layout
+
             val groupNameEditText = dialogView.findViewById<EditText>(R.id.edit_text_group_name_dialog)
-            // val groupDescriptionEditText = dialogView.findViewById<EditText>(R.id.edit_text_group_description_dialog) // If you added description
 
             builder.setView(dialogView)
-                .setTitle("Create New Group")
-                .setPositiveButton("Create") { _, _ ->
+                .setTitle(getString(R.string.create_new_group_dialog_title))
+                .setPositiveButton(getString(R.string.create_button_text)) { _, _ ->
                     val groupName = groupNameEditText.text.toString().trim()
-                    // val groupDescription = groupDescriptionEditText.text.toString().trim() // If you added description
 
                     if (groupName.isNotEmpty()) {
-                        val currentUser = FirebaseAuth.getInstance().currentUser
+                        val currentUser = firebaseAuth.currentUser
                         if (currentUser != null) {
-                            // Call ViewModel to create the group
-                            // Pass description if you have it: broadGroupViewModel.createNewGroup(groupName, groupDescription, currentUser.uid)
-                            broadGroupViewModel.createNewGroup(groupName, currentUser.uid)
+                            val creatorId = currentUser.uid
+                            Log.d(TAG, "Attempting to create group. Name: '$groupName', CreatorID: '$creatorId'")
+
+                            // --- Member Selection Logic (Placeholder) ---
+                            // TODO: This layout (dialog_create_group.xml) does not yet have UI
+                            //       for selecting members. You will need to add UI elements
+                            //       (e.g., RecyclerView, ChipGroup) to the XML and then
+                            //       implement the logic here to retrieve selected member UIDs.
+                            val selectedMemberIds = emptyList<String>() // Placeholder!
+                            Log.w(TAG, "No member selection UI in dialog_create_group.xml. Passing empty list for memberIds.")
+                            // --- End Member Selection Logic ---
+
+                            broadGroupViewModel.createNewGroup(
+                                groupName = groupName,
+                                creatorId = creatorId,
+                                description = null, // No description field in the current XML
+                                memberIdsFromDialog = selectedMemberIds
+                            )
                         } else {
-                            // Handle case where user is not logged in, though this dialog
-                            // should ideally only be shown if the user is authenticated.
-                            Toast.makeText(context, "Error: User not authenticated.", Toast.LENGTH_SHORT).show()
+                            Log.e(TAG, "User not authenticated. Cannot create group.")
+                            Toast.makeText(context, getString(R.string.error_user_not_authenticated), Toast.LENGTH_SHORT).show()
                         }
                     } else {
-                        groupNameEditText.error = "Group name cannot be empty"
-                        // Prevent dialog from closing if validation fails by not calling dismiss explicitly
-                        // For more robust validation, you might override the button's OnClickListener later.
-                        Toast.makeText(context, "Group name cannot be empty.", Toast.LENGTH_SHORT).show()
+                        groupNameEditText.error = getString(R.string.error_group_name_cannot_be_empty)
+                        Toast.makeText(context, getString(R.string.error_group_name_cannot_be_empty), Toast.LENGTH_SHORT).show()
                     }
                 }
-                .setNegativeButton("Cancel") { dialog, _ ->
+                .setNegativeButton(getString(R.string.cancel_button_text)) { dialog, _ ->
                     dialog.cancel()
                 }
             builder.create()

@@ -2,83 +2,88 @@ package com.example.synapse
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Patterns
+import android.util.Log
+import android.util.Patterns // Keep if your employee codes are email-formatted, otherwise remove
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.synapse.databinding.ActivityLoginBinding // Make sure this is the correct binding class name
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.example.synapse.databinding.ActivityLoginBinding
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.auth
-import java.util.UUID // Ensure this is the correct UUID import if you use it.
+import java.util.UUID
 import kotlin.text.isEmpty
 import kotlin.text.trim
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-
-// com.android.identity.util.UUID was used before, choose one consistently.
-// For simplicity, java.util.UUID is fine.
 
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private lateinit var auth: FirebaseAuth
-    // private val db = FirebaseDatabase.getInstance().reference // Keep if you need to check employee status later
-    private var isInitialCheckDone = false // Flag to manage splash screen during initial checks
+    // private var isInitialCheckDone = false // Flag for splash screen, review if still needed with new logic
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Step 1: Install the splash screen.
-        // This must be called before super.onCreate() and setContentView().
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
 
-        splashScreen.setKeepOnScreenCondition {  false  }
+        // Keep splash screen on screen until we've checked auth status
+        // You might adjust this condition based on how quickly auth check completes
+        var keepSplashOnScreen = true
+        splashScreen.setKeepOnScreenCondition { keepSplashOnScreen }
 
-        binding = ActivityLoginBinding.inflate(layoutInflater) // Ensure this matches your XML file name (e.g., activity_login.xml)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         auth = Firebase.auth
 
-        // Optional: Check if user is already logged in via Firebase Auth AND has a session
-        // This is a more robust check than just SharedPreferences
-        val currentSessionId = getSharedPreferences("session", MODE_PRIVATE).getString("sessionId", null)
-        if (auth.currentUser != null && currentSessionId != null) {
-            // Potentially add a check here to ensure the session ID still corresponds to the logged-in user
-            // For now, if both exist, assume valid session.
+        // Check if user is already logged in
+        val currentUser = auth.currentUser
+        if (currentUser != null) {
+            // User is signed in, check for local session or create one
+            val currentSessionId = getSharedPreferences("session", MODE_PRIVATE).getString("sessionId", null)
+            if (currentSessionId == null) {
+                saveNewSession(currentUser.uid) // Save session using Firebase UID
+            }
             startActivity(Intent(this, HomeActivity::class.java))
             finish()
-            return // Skip further setup if already logged in and session exists
-        } else if (auth.currentUser != null && currentSessionId == null) {
-            // User is authenticated with Firebase, but no local session ID. Create one.
-            // This can happen if the app was closed and SharedPreferences were cleared, but Firebase token is still valid.
-            saveNewSession(auth.currentUser!!.uid) // Or generate a new random UUID if preferred
+            keepSplashOnScreen = false // Allow splash to dismiss
+            return // Skip further setup
         }
-        isInitialCheckDone = true // Add this if not already handled by all paths
+        keepSplashOnScreen = false // Allow splash to dismiss if no user
 
+        // isInitialCheckDone = true // If you had other initial checks
 
-        binding.loginButton.setOnClickListener { // Ensure your login button ID is 'loginButton'
+        binding.loginButton.setOnClickListener {
             loginUser()
         }
 
-        binding.textViewRegisterLink.setOnClickListener {
-            startActivity(Intent(this, RegisterActivity::class.java))
-        }
+        // Remove the registration link and its listener
+        // binding.textViewRegisterLink.visibility = View.GONE // Or remove from XML
     }
 
     private fun loginUser() {
-        val email = binding.emailEditText.text.toString().trim() // Ensure ID is 'emailEditText'
-        val password = binding.passwordEditText.text.toString().trim() // Ensure ID is 'passwordEditText'
+        // Use "employeeCode" or similar if it's not an email.
+        // For Firebase, this will be treated as the "email" field.
+        val employeeCodeOrEmail = binding.emailEditText.text.toString().trim()
+        val password = binding.passwordEditText.text.toString().trim()
 
-        if (email.isEmpty()) {
-            binding.emailEditText.error = "Email is required"
+        if (employeeCodeOrEmail.isEmpty()) {
+            binding.emailEditText.error = "Employee Code/Email is required"
             binding.emailEditText.requestFocus()
             return
         }
 
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            binding.emailEditText.error = "Valid email is required"
+        // OPTIONAL: If your employee codes are NOT in standard email format, REMOVE or COMMENT OUT this check.
+        // If they ARE in email format (e.g., emp001@example.com), you can keep it.
+        /*
+        if (!Patterns.EMAIL_ADDRESS.matcher(employeeCodeOrEmail).matches()) {
+            binding.emailEditText.error = "Valid email format required for login"
             binding.emailEditText.requestFocus()
             return
         }
+        */
 
         if (password.isEmpty()) {
             binding.passwordEditText.error = "Password is required"
@@ -86,44 +91,47 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
-        binding.progressBarLogin.visibility = View.VISIBLE // Ensure ID is 'progressBarLogin'
+        binding.progressBarLogin.visibility = View.VISIBLE
 
-        auth.signInWithEmailAndPassword(email, password)
+        auth.signInWithEmailAndPassword(employeeCodeOrEmail, password)
             .addOnCompleteListener(this) { task ->
                 binding.progressBarLogin.visibility = View.GONE
                 if (task.isSuccessful) {
                     // Login success
                     val firebaseUser = auth.currentUser
                     Toast.makeText(this, "Login Successful.", Toast.LENGTH_SHORT).show()
-
-                    // Now, generate and save the session ID for anonymous messaging
-                    // You can use the Firebase UID itself as the session ID if you want to link
-                    // anonymous messages back to a Firebase User (for your backend/admin purposes only,
-                    // NOT for display to other users).
-                    // Or, generate a new random UUID to keep it fully decoupled.
-                    // For maximum message anonymity from other users, a random UUID is better.
-                    // For your ability to potentially trace/moderate, linking to UID is better.
-                    // Let's stick to the random UUID for now to maintain the original anonymity concept.
-                    saveNewSession()
-
-
-                    // How to handle "Employee" status now?
-                    // For now, let's assume any logged-in user can proceed.
-                    // You might add a check here later if certain emails/UIDs are "employees"
-                    // e.g., checkUserEmployeeStatus(firebaseUser?.uid)
+                    firebaseUser?.let {
+                        Log.d("AdminSetup", "Admin User UID: ${it.uid}") // <-- THIS IS THE UID YOU NEED
+                        // Copy this UID from Logcat
+                    }
+                    // Save a session identifier. Using Firebase UID is common.
+                    // If you have specific reasons for a separate random UUID, keep your original logic.
+                    saveNewSession(firebaseUser?.uid) // Pass UID to link session to user
 
                     startActivity(Intent(this, HomeActivity::class.java))
-                    finishAffinity() // Finish LoginActivity and any other activities in the task associated with it
+                    finishAffinity() // Finish LoginActivity and any other activities in the task
                 } else {
                     // Login failed
-                    Toast.makeText(this, "Login failed: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                    try {
+                        throw task.exception!!
+                    } catch (e: FirebaseAuthInvalidUserException) {
+                        binding.emailEditText.error = "No account found with this code/email."
+                        binding.emailEditText.requestFocus()
+                        Toast.makeText(baseContext, "Login failed: Employee Code/Email not found.", Toast.LENGTH_LONG).show()
+                    } catch (e: FirebaseAuthInvalidCredentialsException) {
+                        binding.passwordEditText.error = "Incorrect password."
+                        binding.passwordEditText.requestFocus()
+                        Toast.makeText(baseContext, "Login failed: Incorrect password.", Toast.LENGTH_LONG).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(baseContext, "Login failed: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
     }
 
     private fun saveNewSession(identifier: String? = null) {
-        // If an identifier (like Firebase UID) is passed, you could use it.
-        // Otherwise, generate a new random one.
+        // If an identifier (like Firebase UID) is passed, use it.
+        // Otherwise, generate a new random one (though with logged-in users, UID is preferred).
         val sessionIdToSave = identifier ?: UUID.randomUUID().toString()
         getSharedPreferences("session", MODE_PRIVATE).edit()
             .putString("sessionId", sessionIdToSave)

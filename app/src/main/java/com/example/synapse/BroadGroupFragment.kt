@@ -106,8 +106,20 @@ class BroadGroupFragment : Fragment() {
     private fun observeViewModels() {
         Log.d(TAG, "Fragment: Setting up ViewModel observers.")
 
+        // --- Observe Admin Status from BroadGroupViewModel ---
+        broadGroupViewModel.isAdmin.observe(viewLifecycleOwner) { isAdmin ->
+            Log.d(TAG, "Admin status observed: $isAdmin")
+            binding.fabAddNewGroup.visibility = if (isAdmin) View.VISIBLE else View.GONE
+            if (isAdmin) {
+                Log.d(TAG, "User is Admin. Showing Create Group FAB.")
+            } else {
+                Log.d(TAG, "User is NOT Admin. Hiding Create Group FAB.")
+            }
+        }
+        // --- End Observe Admin Status ---
+
         // Observe the full list of groups from BroadGroupViewModel
-        broadGroupViewModel.groups.observe(viewLifecycleOwner, Observer { groups ->
+        broadGroupViewModel.groups.observe(viewLifecycleOwner) { groups ->
             Log.d(TAG, "Fragment: 'groups' LiveData updated in Fragment. Original item count: ${groups?.size ?: 0}")
             allGroups = groups ?: emptyList() // Store the full list
 
@@ -118,7 +130,8 @@ class BroadGroupFragment : Fragment() {
                         TAG,
                         "Fragment: Original Group $index: ID='${group.id}', Name='${group.name}', " +
                                 "LastMsg='${group.lastMessage?.text?.take(30)}...', " +
-                                "Unread='${group.unreadCount}'"
+                                "Unread='${group.unreadCount}', " +
+                                "UnreadFromOthers='${group.hasUnreadMessagesFromOthers}'" // <-- ADD THIS
                     )
                 }
             }
@@ -127,7 +140,7 @@ class BroadGroupFragment : Fragment() {
             val currentQuery = homeViewModel.searchQuery.value
             Log.d(TAG, "Full group list updated. Applying current search query: '$currentQuery'")
             filterAndDisplayGroups(currentQuery)
-        })
+        }
 
         // Observe the search query from HomeViewModel
         homeViewModel.searchQuery.observe(viewLifecycleOwner, Observer { query ->
@@ -144,14 +157,24 @@ class BroadGroupFragment : Fragment() {
             }
         })
 
-        // Group creation event observation (remains the same)
+        // Group creation event observation
         broadGroupViewModel.groupCreatedEvent.observe(viewLifecycleOwner, Observer { eventData ->
-            val groupName = eventData.second
-            Log.i(TAG, "Observed groupCreatedEvent for group: $groupName (ID: ${eventData.first})")
-            Toast.makeText(context, "Group '$groupName' created successfully!", Toast.LENGTH_SHORT).show()
+            // This code inside the lambda runs WHEN the event occurs
+            eventData?.let { data -> // Use ?.let for safety if eventData can be null initially
+                val groupId = data.first    // Assuming eventData is Pair<String, String>
+                val groupName = data.second
+                Log.i(TAG, "Observed groupCreatedEvent for group: $groupName (ID: $groupId)")
+                Toast.makeText(context, "Group '$groupName' created successfully!", Toast.LENGTH_SHORT).show()
+
+                // CORRECT PLACE: Call this *after* you've handled the event (shown the Toast)
+                // and *inside* the observer's lambda.
+                broadGroupViewModel.onGroupCreatedEventHandled()
+            }
         })
         Log.d(TAG, "ViewModel observers set up.")
+        // DO NOT call onGroupCreatedEventHandled() here anymore.
     }
+
 
     private fun filterAndDisplayGroups(query: String?) {
         val filteredList = if (query.isNullOrBlank()) {
@@ -174,8 +197,7 @@ class BroadGroupFragment : Fragment() {
         Log.d(TAG, "Submitting list to adapter. Filtered count: ${filteredList.size}. Query: '$query'")
         if (filteredList.isNotEmpty()) {
             filteredList.take(3).forEachIndexed { index, group -> // Log first 3 filtered items
-                Log.d(TAG, "Fragment: Filtered Group $index to display: ID='${group.id}', Name='${group.name}'")
-            }
+                Log.d(TAG, "Fragment: Filtered Group $index to display: ID='${group.id}', Name='${group.name}', UnreadFromOthers='${group.hasUnreadMessagesFromOthers}'")             }
         } else {
             Log.d(TAG, "Fragment: Filtered list is empty.")
         }
