@@ -21,7 +21,10 @@ import kotlinx.coroutines.tasks.await
 class ChatRoomViewModel : ViewModel() {
 
     private val database: FirebaseDatabase = Firebase.database
-    private val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
+    // It's slightly safer to get currentUserId inside methods where it's needed,
+    // in case the ViewModel outlives the user's auth session briefly,
+    // but for typical usage, this is okay.
+    private val firebaseAuth = FirebaseAuth.getInstance() // Keep instance for potential re-fetch
 
     private var currentGroupMessagesTypeRef: DatabaseReference? = null
     private var currentPathStringForListener: String? = null
@@ -40,18 +43,18 @@ class ChatRoomViewModel : ViewModel() {
         private const val TAG = "ChatRoomViewModel"
         private const val MESSAGES_NODE = "messages"
         private const val CHANNELS_NODE = "channels"
-        // Define the anonymous sender name
-        private const val ANONYMOUS_SENDER_NAME = "User" // Or "Anonymous", or any placeholder
+        private const val ANONYMOUS_SENDER_NAME = "User"
     }
 
     fun loadMessages(groupId: String, messageType: String) {
+        val currentUserId = firebaseAuth.currentUser?.uid // Fetch fresh UID
         if (currentUserId == null) {
             _error.value = "User not logged in. Cannot load messages."
             Log.e(TAG, "loadMessages: Current user is null for groupId: $groupId, messageType: $messageType")
             _isLoading.value = false
             return
         }
-        Log.d(TAG, "Loading messages for groupId: $groupId, messageType: $messageType")
+        Log.d(TAG, "Loading messages for groupId: $groupId, messageType: $messageType, User: $currentUserId")
         _isLoading.value = true
 
         clearMessagesListener()
@@ -90,9 +93,10 @@ class ChatRoomViewModel : ViewModel() {
         currentGroupMessagesTypeRef?.orderByChild("timestamp")?.addValueEventListener(messagesValueEventListener!!)
     }
 
-    // The senderName parameter is still accepted but will be overridden internally
     fun sendMessage(groupId: String, messageType: String, text: String, senderName: String) {
-        Log.d(TAG, "sendMessage CALLED with: groupId='$groupId', messageType='$messageType', text='$text', senderName (original)='$senderName'")
+        val currentUserId = firebaseAuth.currentUser?.uid // Fetch fresh UID
+        Log.d(TAG, "sendMessage CALLED with: groupId='$groupId', messageType='$messageType', text='$text', senderName (original)='$senderName', CurrentAuthUID: $currentUserId")
+
         if (currentUserId == null) {
             _error.value = "Cannot send message: User not logged in."
             Log.e(TAG, "sendMessage: Current user is null for groupId $groupId.")
@@ -106,17 +110,8 @@ class ChatRoomViewModel : ViewModel() {
             return
         }
 
-        // The original senderName parameter is no longer used for the actual sender name in the database.
-        // We use ANONYMOUS_SENDER_NAME instead.
-        // The check for senderName.isBlank() might still be useful if you want to ensure the calling code
-        // is at least attempting to provide some name, even if it's not used for DB storage.
-        // However, for strict anonymization, this check on the input `senderName` becomes less critical
-        // as we are overriding it.
         if (senderName.isBlank()) {
             Log.w(TAG, "sendMessage: Original senderName parameter was blank for groupId $groupId, type $messageType. This will be overridden by ANONYMOUS_SENDER_NAME.")
-            // You could choose to return an error here if you still expect a non-blank original senderName for some other logic
-            // _error.value = "Original sender name cannot be empty."
-            // return
         }
 
         if (messageType.isBlank()) {
@@ -137,16 +132,18 @@ class ChatRoomViewModel : ViewModel() {
         }
 
         val messageToSend = Message(
-            senderId = currentUserId,
-            senderName = ANONYMOUS_SENDER_NAME, // <--- ANONYMIZATION APPLIED HERE
+            senderId = currentUserId, // Crucial: use the fetched currentUserId
+            senderName = ANONYMOUS_SENDER_NAME,
             text = trimmedText,
             timestamp = currentTimestamp,
             messageType = messageType
         )
 
+        // *** THIS IS THE KEY CHANGE ***
         val lastMessageDataForChannel = hashMapOf(
+            "senderId" to currentUserId, // Ensure senderId is included here
+            "senderName" to ANONYMOUS_SENDER_NAME,
             "text" to trimmedText,
-            "senderName" to ANONYMOUS_SENDER_NAME, // <--- ANONYMIZATION APPLIED HERE
             "timestamp" to currentTimestamp,
             "messageType" to messageType
         )
@@ -160,7 +157,7 @@ class ChatRoomViewModel : ViewModel() {
         )
 
         Log.d(TAG, "Attempting multi-location update for GroupID: $groupId, MessageType: $messageType")
-        Log.d(TAG, "Attempting multi-location update. CurrentAuthUID: ${currentUserId}. Updates (with anonymized senderName): $updates") // Updated log
+        Log.d(TAG, "Updates object: $updates") // Log the actual updates object
         viewModelScope.launch {
             try {
                 database.reference.updateChildren(updates).await()

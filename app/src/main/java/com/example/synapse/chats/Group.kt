@@ -7,23 +7,17 @@ data class Group(
     var id: String = "",
     var name: String = "",
     var description: String? = null,
-    // var memberIds: List<String> = emptyList(), // OLD
     var members: Map<String, Boolean> = emptyMap(), // NEW: Changed to Map
     var createdBy: String? = null,
     var timestamp: Long? = null,
-
     var lastMessage: Message? = null,
     var lastMessageTimestamp: Long? = null,
-
-    // These fields are often client-side derived or handled with specific logic,
-    // ensure they are correctly excluded if not directly stored under the group node
-    // or if their structure in DB is different.
-    // If unreadCount and hasUnreadMessagesFromOthers are NOT directly under the group node
-    // in this exact form, they should be excluded from Firebase direct mapping.
     @get:Exclude
     var unreadCount: Int = 0,
     @get:Exclude
-    var hasUnreadMessagesFromOthers: Boolean = false
+    var hasUnreadMessagesFromOthers: Boolean = false,
+    @get:Exclude
+    var showUnreadDot: Boolean = false // NEW: For the unread dot indicator
 ) {
     // No-argument constructor for Firebase deserialization
     constructor() : this(
