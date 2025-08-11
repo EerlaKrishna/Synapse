@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.synapse.R
@@ -71,7 +72,7 @@ class ChatRoomFragment : Fragment() {
         binding.textViewChannelNameHeader.text = navArgs.groupName ?: getString(R.string.default_channel_name) // Use a string resource for default
 
 
-        (activity as? AppCompatActivity)?.supportActionBar?.title = navArgs.groupName
+        //(activity as? AppCompatActivity)?.supportActionBar?.title = navArgs.groupName
 
         if (currentUserId == null) {
             Log.e(TAG, "Current user ID is null. Cannot initialize chat.")
@@ -80,7 +81,7 @@ class ChatRoomFragment : Fragment() {
             binding.editTextMessage.isEnabled = false
             return
         }
-
+        setupBackButton() // Add this call
         setupTabs()
         setupMessagesRecyclerView()
         setupSendButton()
@@ -119,6 +120,16 @@ class ChatRoomFragment : Fragment() {
         binding.recyclerViewMessages.adapter = null
         _binding = null
         stopPeriodicRefresh() // Ensure handler callbacks are removed
+    }
+
+    // New function to setup the back button
+    private fun setupBackButton() {
+        binding.buttonBackArrow.setOnClickListener {
+            // findNavController().navigateUp() // This is usually sufficient
+            // OR, if you want to be more explicit about popping the current fragment:
+            findNavController().popBackStack()
+            Log.d(TAG, "Back button clicked, navigating up.")
+        }
     }
 
     private fun setupTabs() {

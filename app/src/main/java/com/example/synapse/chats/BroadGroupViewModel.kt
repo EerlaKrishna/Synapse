@@ -43,6 +43,10 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
     private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>?>()
     val groupCreatedEvent: LiveData<Pair<String, String?>?> = _groupCreatedEvent
 
+    // --- Add isLoading LiveData ---
+    private val _isLoading = MutableLiveData<Boolean>()
+    val isLoading: LiveData<Boolean> = _isLoading
+    // --- End isLoading LiveData ---
 
     // --- Existing ChatListItem related properties and functions ---
     // These manage a separate list (_chatList) with detailed unread count logic.
@@ -179,7 +183,9 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
         }
         channelsValueEventListener = null
 
-        Log.d(TAG, "VM: Attaching new channels listener.")
+        Log.d(TAG, "VM: Attaching new channels listener. Setting isLoading to true.")
+        _isLoading.value = true // Indicate loading starts before attaching the listener
+
         channelsValueEventListener = channelsRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 Log.d(TAG, "VM: attachChannelsListener - onDataChange. Path: ${snapshot.ref}")
@@ -198,6 +204,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                         saveChatItemsMapToPrefs()
                     }
                     _chatList.postValue(emptyList()) // Also update _chatList if it's still used
+                    _isLoading.value = false
                     return
                 }
 
@@ -209,7 +216,10 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                     }
                     _groups.postValue(emptyList())
                     _chatList.postValue(emptyList()) // Also update _chatList if it's still used
-                    if (chatListItemMapModified) saveChatItemsMapToPrefs()
+                    if (chatListItemMapModified) {
+                        saveChatItemsMapToPrefs()
+                    }
+                    _isLoading.value = false // Loading finished (no data found)
                     return
                 }
 
@@ -352,6 +362,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                 // Update _chatList separately if it's still actively used by another part of your UI
                 // and is derived from currentChatItemsMap
                 publishChatListUpdates()
+                _isLoading.value = false
             }
 
             // In BroadGroupViewModel.kt (continuing attachChannelsListener's onCancelled)
@@ -364,6 +375,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                 val pathInfo = channelsRef.toString() // More robust way to get the path information
 
                 Log.e(TAG, "VM: Firebase listener for channels cancelled: ${error.message} at path: $pathInfo", error.toException())
+                _isLoading.value = false // Loading finished (due to cancellation/error)
 
             }
         })
@@ -485,6 +497,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
 
         if (listChanged) {
             Log.d(TAG, "VM: List changed during group initialization/update. Publishing ChatListItem updates.")
+            saveChatItemsMapToPrefs() // <<< ADD THIS LINE
             publishChatListUpdates() // This updates _chatList
 
         } else {
@@ -682,8 +695,17 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
         // _groups will be cleared by the listener if the Firebase node becomes empty or on next update.
         // If you want to clear it immediately:
         _groups.postValue(emptyList())
-        Log.d(TAG, "VM: Cleared all data from BroadGroupViewModel (ChatListItems and Groups).")
+        // Clear SharedPreferences for the current user
+        val prefKey = getPrefKeyForCurrentUser()
+        if (prefKey != null) {
+            prefs.edit().remove(prefKey).apply()
+            Log.d(TAG, "VM: Cleared SharedPreferences for key $prefKey.")
+        } else {
+            Log.w(TAG, "VM: Could not clear SharedPreferences, user not logged in or key generation failed.")
+        }
+        Log.d(TAG, "VM: Cleared all data from BroadGroupViewModel (ChatListItems, Groups, and relevant SharedPreferences).")
     }
+
 
     override fun onCleared() {
         super.onCleared()
@@ -691,6 +713,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
         channelsValueEventListener?.let {
             channelsRef.removeEventListener(it)
         }
+        channelsValueEventListener = null // Ensure it's nullified
         Log.d(TAG, "BroadGroupViewModel cleared and Firebase listener removed.")
     }
 }

@@ -6,10 +6,12 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -726,21 +728,33 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         val searchItem = menu?.findItem(R.id.action_search_dms) // Use your search item ID
         val searchView = searchItem?.actionView as? SearchView
 
-        searchView?.queryHint = getString(R.string.search_groups_hint) // Example: "Search groups..."
-        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                homeViewModel.setSearchQuery(query)
-                searchView.clearFocus() // Optional: hide keyboard
-                Log.d(TAG, "Search submitted: $query")
-                return true
-            }
+        searchView?.let { sv -> // Renamed to sv to avoid conflict if you name the EditText searchView
+            sv.queryHint = getString(R.string.search_groups_hint) // Example: "Search groups..."
 
-            override fun onQueryTextChange(newText: String?): Boolean {
-                homeViewModel.setSearchQuery(newText)
-                Log.d(TAG, "Search query changed: $newText")
-                return true
+            // --- START: Set inputType for capitalization ---
+            try {
+                val searchEditText = sv.findViewById<EditText>(androidx.appcompat.R.id.search_src_text)
+                searchEditText?.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not find or set input type for search EditText", e)
             }
-        })
+            // --- END: Set inputType for capitalization ---
+
+            sv.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    homeViewModel.setSearchQuery(query)
+                    sv.clearFocus() // Optional: hide keyboard
+                    Log.d(TAG, "Search submitted: $query")
+                    return true
+                }
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    homeViewModel.setSearchQuery(newText)
+                    Log.d(TAG, "Search query changed: $newText")
+                    return true
+                }
+            })
+        } // End of searchView?.let
+
 
         // Optional: Handle search view expansion/collapse to clear query
         searchItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {

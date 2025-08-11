@@ -118,6 +118,23 @@ class BroadGroupFragment : Fragment() {
         }
         // --- End Observe Admin Status ---
 
+        // --- Observe isLoading status from BroadGroupViewModel ---
+        broadGroupViewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
+            Log.d(TAG, "Fragment: isLoading state observed: $isLoading")
+            if (isLoading) {
+                binding.progressBarBroadGroups.visibility = View.VISIBLE
+                // Optionally hide RecyclerView and placeholder while loading initial data
+                // binding.recyclerViewBroadGroups.visibility = View.GONE
+                // binding.textViewNoChatsPlaceholder.visibility = View.GONE
+            } else {
+                binding.progressBarBroadGroups.visibility = View.GONE
+                // Visibility of RecyclerView and placeholder will be handled by filterAndDisplayGroups
+                // after data is loaded. If allGroups is empty after loading,
+                // filterAndDisplayGroups will show the placeholder.
+            }
+        }
+        // --- End Observe isLoading Status ---
+
         // Observe the full list of groups from BroadGroupViewModel
         broadGroupViewModel.groups.observe(viewLifecycleOwner) { groups ->
             Log.d(TAG, "Fragment: 'groups' LiveData updated in Fragment. Original item count: ${groups?.size ?: 0}")
