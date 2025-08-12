@@ -1,34 +1,63 @@
+<!-- res/values-night/themes.xml -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme customizations for night mode can go into your
-         existing Base.Theme.Synapse or Theme.Synapse if needed, since it
-         inherits from DayNight.NoActionBar.
-         For example, if certain M3 colors needed slight adjustments for dark theme
-         beyond what DayNight parent provides, you'd override them in Theme.Synapse
-         or Base.Theme.Synapse within this file. -->
 
-    <!-- Example: If you wanted Theme.Synapse to have specific overrides for dark mode -->
+    <!-- Base application theme for night mode -->
+    <style name="Base.Theme.Synapse" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Overrides for Dark Theme Material 3 color palette -->
+
+        <!-- Primary brand color (Desaturated for Dark Theme) -->
+        <item name="colorPrimary">@color/cognizant_blue_desaturated_dark</item>
+        <item name="colorOnPrimary">@color/cognizant_blue_on_desaturated_dark</item>
+        <item name="colorPrimaryContainer">@color/cognizant_blue_container_desaturated_dark</item>
+        <item name="colorOnPrimaryContainer">@color/cognizant_blue_on_container_desaturated_dark</item>
+
+        <!-- Secondary brand color (Desaturated for Dark Theme) -->
+        <item name="colorSecondary">@color/cognizant_blue_accent_desaturated_dark</item>
+        <item name="colorOnSecondary">@color/cognizant_blue_accent_on_desaturated_dark</item>
+        <item name="colorSecondaryContainer">@color/cognizant_blue_accent_container_desaturated_dark</item>
+        <item name="colorOnSecondaryContainer">@color/cognizant_blue_accent_on_container_desaturated_dark</item>
+
+        <!-- Error color (Desaturated for Dark Theme) -->
+        <item name="colorError">@color/red_desaturated_dark</item>
+        <item name="colorOnError">@color/red_on_desaturated_dark</item>
+        <item name="colorErrorContainer">@color/red_container_desaturated_dark</item>
+        <item name="colorOnErrorContainer">@color/red_on_container_desaturated_dark</item>
+
+        <!-- Neutral colors for backgrounds and surfaces (Key for Dark Theme) -->
+        <item name="android:colorBackground">@color/cognizant_dark_surface</item>
+        <item name="colorOnBackground">@color/cognizant_dark_on_surface</item>
+        <item name="colorSurface">@color/cognizant_dark_surface</item> <!-- Base surface -->
+        <item name="colorOnSurface">@color/cognizant_dark_on_surface</item>
+        <item name="colorSurfaceVariant">@color/cognizant_dark_surface_variant</item> <!-- For cards, dialogs, etc. -->
+        <item name="colorOnSurfaceVariant">@color/cognizant_dark_on_surface_variant</item>
+        <item name="colorOutline">@color/cognizant_dark_outline</item>
+
+        <!-- Optional: Control status bar and navigation bar colors for dark theme -->
+        <!-- <item name="android:statusBarColor">@color/cognizant_dark_surface</item> -->
+        <!-- <item name="android:navigationBarColor">@color/cognizant_dark_surface</item> -->
+        <!-- <item name="android:windowLightStatusBar" tools:targetApi="m">false</item> --> <!-- Ensures status bar icons are light -->
+
+    </style>
+
+    <!-- Theme.Synapse inherits from Base.Theme.Synapse, so it gets these dark overrides -->
+    <!-- You typically don't need to redeclare Theme.Synapse here unless you have
+         *additional specific* overrides for the night version of Theme.Synapse
+         that differ from Base.Theme.Synapse's night version.
+         If Base.Theme.Synapse in this file correctly defines all your dark theme adjustments,
+         your existing Theme.Synapse (defined in the main themes.xml) will pick them up
+         because its parent (Base.Theme.Synapse) is now resolved from this night-qualified file.
+    -->
     <!--
     <style name="Theme.Synapse" parent="Base.Theme.Synapse">
-        <item name="colorSurface">@color/some_specific_dark_surface_color</item>
-        <item name="colorOnSurface">@color/some_specific_dark_on_surface_color</item>
+        <item name="someSpecificNightOnlyAttributeForThemeSynapse">@color/some_color</item>
     </style>
     -->
 
     <!-- Splash Screen Theme (Night) -->
-    <!-- This theme is applied to your LoginActivity in the Manifest when night mode is active -->
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <!-- Background color for the splash screen (Night mode) -->
         <item name="windowSplashScreenBackground">@color/synapse_splash_background_night</item>
-
-        <!-- Animated icon for the splash screen (your launcher icon) -->
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/synapse1</item>
-
-        <!-- Theme to apply after the splash screen finishes -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/img_1</item> <!-- Ensure img_1 is suitable for dark bg -->
         <item name="postSplashScreenTheme">@style/Theme.Synapse</item>
-
-        <!-- Optional: Tint the icon if it's monochrome and needs a specific color for night mode.
-             e.g., if you want the icon to be white in dark mode.
-        <item name="windowSplashScreenIconTintColor">@color/white</item>
-        -->
+        <item name="windowSplashScreenIconBackgroundColor">@color/white_for_splash_icon_tint_dark</item>
     </style>
 </resources>

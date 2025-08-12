@@ -38,7 +38,7 @@
         <!-- SET THIS: Background color for the ENTIRE splash screen -->
         <item name="windowSplashScreenBackground">@color/white</item> <!-- Or your preferred color -->
 
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/synapse1</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/img</item>
         <item name="postSplashScreenTheme">@style/Theme.Synapse</item>
         <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
     </style>

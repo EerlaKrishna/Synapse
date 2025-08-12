@@ -39,4 +39,5 @@
         <string name="cancel_button_text">Cancel</string>
         <string name="error_user_not_authenticated">Error: User not authenticated.</string>
         <string name="error_group_name_cannot_be_empty">Group name cannot be empty.</string>
-       </resources>
+    <string name="login">Login</string>
+</resources>

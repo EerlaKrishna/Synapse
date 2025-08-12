@@ -1,48 +1,143 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- ===================================================================================== -->
+    <!-- Universal Colors / Base Palette -->
+    <!-- ===================================================================================== -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="red">#CC1B1B</color>
-    <color name="colorAccent">#FF6200EE</color>
-    <color name="unread_message_text_color">#000000</color>
-    <color name="read_message_text_color">#757575</color>
+    <color name="red">#CC1B1B</color> <!-- Base Red for Light Theme Error -->
+    <color name="red_dark">#A80F0F</color> <!-- Used in Light Theme as colorOnErrorContainer -->
 
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color> <!-- This is the one you need -->
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
-    <color name="chat_bubble_received_background">#F1F1F1</color>
-    <color name="chat_bubble_sent_background">#0077C8</color>
-    <color name="chat_sender_name_received">#0D47A1</color>
-    <color name="chat_timestamp_received">#757575</color>
-    <color name="chat_timestamp_sent">#FFFFFF</color>
-
-
-
-
-
-
-
-    <color name="red_dark">#A80F0F</color>
-    <color name="red_light_container">#FDECEA</color>
-
-    <!-- Cognizant Inspired Colors -->
+    <!-- Cognizant Brand Colors (Primarily for Light Theme or as base for desaturation) -->
     <color name="cognizant_blue">#0077C8</color>
-    <color name="cognizant_blue_dark">#005A9C</color>
+    <color name="cognizant_blue_dark">#005A9C</color> <!-- Darker variant of brand blue -->
+    <color name="cognizant_blue_accent">#00AEEF</color> <!-- Accent for Light Theme -->
+
+    <!-- Text Colors (General/Light Theme) -->
     <color name="cognizant_text_gray">#4A4A4A</color>
     <color name="cognizant_text_gray_medium">#6E6E6E</color>
 
-    <!-- Material 3 Theme Placeholder Colors -->
+    <!-- ===================================================================================== -->
+    <!-- Light Theme Semantic & Material 3 Mapped Colors -->
+    <!-- ===================================================================================== -->
+    <!-- Primary (Light Theme) -->
+    <!-- Mapped to: <item name="colorPrimary">@color/cognizant_blue</item> -->
+    <!-- Mapped to: <item name="colorOnPrimary">@color/white</item> -->
     <color name="cognizant_blue_light_container">#D1E6F9</color>
-    <color name="cognizant_blue_accent">#00AEEF</color>
-    <color name="cognizant_blue_accent_light_container">#CCF0FF</color>
-    <color name="cognizant_surface_variant">#E0E0E0</color>
-    <color name="cognizant_outline_gray">#BDBDBD</color>
+    <!-- Mapped to: <item name="colorPrimaryContainer">@color/cognizant_blue_light_container</item> -->
+    <!-- Mapped to: <item name="colorOnPrimaryContainer">@color/cognizant_blue_dark</item> -->
 
-    <!-- Splash Screen Specific Colors -->
-    <color name="synapse_splash_background">#FFFFFF</color> <!-- Light theme background (White) -->
-    <color name="synapse_splash_icon_text_color">#0077C8</color> <!-- Synapse Blue for icon/text (can be used for tint if needed) -->
-    <color name="synapse_splash_background_night">#1C1B1F</color> <!-- Dark theme background for splash -->
+    <!-- Secondary (Light Theme) -->
+    <!-- Mapped to: <item name="colorSecondary">@color/cognizant_blue_accent</item> -->
+    <!-- Mapped to: <item name="colorOnSecondary">@color/white</item> -->
+    <color name="cognizant_blue_accent_light_container">#CCF0FF</color>
+    <!-- Mapped to: <item name="colorSecondaryContainer">@color/cognizant_blue_accent_light_container</item> -->
+    <!-- Mapped to: <item name="colorOnSecondaryContainer">@color/cognizant_blue_dark</item> -->
+
+    <!-- Error (Light Theme) -->
+    <!-- Mapped to: <item name="colorError">@color/red</item> -->
+    <!-- Mapped to: <item name="colorOnError">@color/white</item> -->
+    <color name="red_light_container">#FDECEA</color>
+    <!-- Mapped to: <item name="colorErrorContainer">@color/red_light_container</item> -->
+    <!-- Mapped to: <item name="colorOnErrorContainer">@color/red_dark</item> -->
+
+    <!-- Surface, Background, Outline (Light Theme) -->
+    <!-- Mapped to: <item name="android:colorBackground">@color/white</item> -->
+    <!-- Mapped to: <item name="colorOnBackground">@color/cognizant_text_gray</item> -->
+    <!-- Mapped to: <item name="colorSurface">@color/white</item> -->
+    <!-- Mapped to: <item name="colorOnSurface">@color/cognizant_text_gray</item> -->
+    <color name="cognizant_surface_variant">#E0E0E0</color>
+    <!-- Mapped to: <item name="colorSurfaceVariant">@color/cognizant_surface_variant</item> -->
+    <!-- Mapped to: <item name="colorOnSurfaceVariant">@color/cognizant_text_gray_medium</item> -->
+    <color name="cognizant_outline_gray">#BDBDBD</color>
+    <!-- Mapped to: <item name="colorOutline">@color/cognizant_outline_gray</item> -->
+
+    <!-- Splash Screen (Light Theme) -->
+    <color name="synapse_splash_background">@color/white</color>
+    <color name="synapse_splash_icon_text_color">@color/cognizant_blue</color>
+
+
+    <!-- ===================================================================================== -->
+    <!-- DARK THEME Semantic & Material 3 Mapped Colors -->
+    <!-- These will be referenced by your res/values-night/themes.xml -->
+    <!-- ===================================================================================== -->
+    <!-- Base Dark Theme Surfaces & Text -->
+    <color name="cognizant_dark_surface">#1F1F1F</color>
+    <color name="cognizant_dark_surface_variant">#2C2C2C</color>
+    <color name="cognizant_dark_on_surface">#EAEAEA</color>
+    <color name="cognizant_dark_on_surface_variant">#C8C8C8</color>
+    <color name="cognizant_dark_outline">#5A5A5A</color>
+
+    <!-- Desaturated Primary for Dark Theme -->
+    <color name="cognizant_blue_desaturated_dark">#79B8FF</color>
+    <color name="cognizant_blue_on_desaturated_dark">#002D5A</color>
+    <color name="cognizant_blue_container_desaturated_dark">#004A94</color>
+    <color name="cognizant_blue_on_container_desaturated_dark">#C3E6FF</color>
+
+    <!-- Desaturated Secondary for Dark Theme -->
+    <color name="cognizant_blue_accent_desaturated_dark">#79D1FF</color>
+    <color name="cognizant_blue_accent_on_desaturated_dark">#003350</color>
+    <color name="cognizant_blue_accent_container_desaturated_dark">#004C74</color>
+    <color name="cognizant_blue_accent_on_container_desaturated_dark">#BDE9FF</color>
+
+    <!-- Error Colors for Dark Theme -->
+    <color name="red_desaturated_dark">#FFB4AB</color>
+    <color name="red_on_desaturated_dark">#690005</color>
+    <color name="red_container_desaturated_dark">#93000A</color>
+    <color name="red_on_container_desaturated_dark">#FFDAD6</color>
+
+    <!-- Splash Screen (Dark Theme) -->
+    <color name="synapse_splash_background_night">#1C1B1F</color>
+    <color name="white_for_splash_icon_tint_dark">#FFFFFF</color> <!-- For tinting splash icon in dark theme -->
+
+
+    <!-- ===================================================================================== -->
+    <!-- Component-Specific Colors (Define Light & Dark variants as needed) -->
+    <!-- ===================================================================================== -->
+    <!-- Unread/Read Message Text (Consider if these should be aliases to onSurface/onSurfaceVariant) -->
+    <!-- Light Theme -->
+    <color name="unread_message_text_color">#000000</color> <!-- Or @color/cognizant_text_gray -->
+    <color name="read_message_text_color">#757575</color>    <!-- Or @color/cognizant_text_gray_medium -->
+    <!-- Dark Theme -->
+    <color name="unread_message_text_color_dark">@color/cognizant_dark_on_surface</color>
+    <color name="read_message_text_color_dark">@color/cognizant_dark_on_surface_variant</color>
+
+    <!-- Chat Bubbles -->
+    <!-- Light Theme -->
+    <color name="chat_bubble_received_background">#F1F1F1</color> <!-- Consider @color/cognizant_surface_variant -->
+    <color name="chat_bubble_sent_background">@color/cognizant_blue</color>
+    <color name="chat_sender_name_received">#0D47A1</color> <!-- Consider @color/cognizant_blue_dark -->
+    <color name="chat_timestamp_received">#757575</color>
+    <color name="chat_timestamp_sent">@color/white</color>
+    <!-- Dark Theme -->
+    <color name="chat_bubble_received_background_dark">@color/cognizant_dark_surface_variant</color>
+    <color name="chat_bubble_sent_background_dark">@color/cognizant_blue_container_desaturated_dark</color>
+    <color name="chat_sender_name_received_dark">@color/cognizant_blue_accent_desaturated_dark</color>
+    <color name="chat_timestamp_received_dark">@color/cognizant_dark_on_surface_variant</color>
+    <color name="chat_timestamp_sent_dark">@color/cognizant_blue_on_container_desaturated_dark</color>
+
+    <!-- Group List Item States -->
+    <!-- Light Theme (using existing text colors for now) -->
+    <color name="group_name_unread">@color/unread_message_text_color</color>
+    <color name="group_name_read">@color/read_message_text_color</color>
+    <color name="last_message_unread">@color/unread_message_text_color</color>
+    <color name="last_message_read">@color/read_message_text_color</color>
+    <!-- Dark Theme -->
+    <color name="group_name_unread_dark">@color/unread_message_text_color_dark</color>
+    <color name="group_name_read_dark">@color/read_message_text_color_dark</color>
+    <color name="last_message_unread_dark">@color/unread_message_text_color_dark</color>
+    <color name="last_message_read_dark">@color/read_message_text_color_dark</color>
+
+
+    <!-- ===================================================================================== -->
+    <!-- Legacy/Old Colors (Review and Phase Out if Possible) -->
+    <!-- ===================================================================================== -->
+    <color name="colorAccent">#FF6200EE</color> <!-- Material 2 legacy, map to M3 roles if used -->
+    <color name="purple_200">#FFBB86FC</color> <!-- M2 legacy -->
+    <color name="purple_500">#FF6200EE</color> <!-- M2 legacy -->
+    <color name="purple_700">#FF3700B3</color> <!-- M2 legacy -->
+    <color name="teal_200">#FF03DAC5</color>   <!-- M2 legacy -->
+    <color name="teal_700">#FF018786</color>   <!-- M2 legacy -->
 
 </resources>

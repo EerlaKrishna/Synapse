@@ -9,30 +9,34 @@
     tools:context=".LoginActivity">
 
     <!-- ImageView for the Synapse Logo -->
+
     <ImageView
         android:id="@+id/imageViewLogo"
-        android:layout_width="250dp"
-        android:layout_height="150dp"
-        android:src="@drawable/synapse1"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="100dp"
+        android:layout_width="274dp"
+        android:layout_height="274dp"
+        android:layout_marginTop="32dp"
         android:contentDescription="Synapse Logo"
-        android:scaleType="fitCenter" />
+        android:scaleType="fitCenter"
+        android:src="@mipmap/synapse1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.325"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/textViewLoginTitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Login"
+        android:layout_width="359dp"
+        android:layout_height="35dp"
+        android:layout_marginTop="30dp"
+        android:layout_marginStart="19dp"
+        android:text="@string/login"
+        android:textColor="@color/cognizant_blue"
+        android:textSize="25sp"
         android:textStyle="bold"
-        android:textAppearance="?attr/textAppearanceHeadline5"
-        android:textColor="?attr/colorPrimary"
-        app:layout_constraintTop_toBottomOf="@id/imageViewLogo"
-        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="24dp"/>
+        app:layout_constraintHorizontal_bias="0.039"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/imageViewLogo" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/usernameCard"
@@ -58,9 +62,9 @@
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/emailEditText"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textCapSentences"
-                android:imeOptions="actionNext"/>
+                android:layout_height="60dp"
+                android:imeOptions="actionNext"
+                android:inputType="textCapSentences" />
         </com.google.android.material.textfield.TextInputLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -89,9 +93,9 @@
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/passwordEditText"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textPassword"
-                android:imeOptions="actionDone"/>
+                android:layout_height="60dp"
+                android:imeOptions="actionDone"
+                android:inputType="textPassword" />
         </com.google.android.material.textfield.TextInputLayout>
     </com.google.android.material.card.MaterialCardView>
 
