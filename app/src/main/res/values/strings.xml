@@ -24,6 +24,8 @@
 
     <string name="desc_add_new_group">Create a new group</string>
 
+    <string name="improvement_count_description">Number of improvement messages</string>
+    <string name="drawback_count_description">Number of drawback messages</string>
 
     <!-- ... other strings ... -->
     <string name="error_user_not_identified">User not identified. Please log in again.</string>

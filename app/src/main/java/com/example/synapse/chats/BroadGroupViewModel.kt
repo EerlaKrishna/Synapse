@@ -7,14 +7,20 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import com.example.synapse.AppConfig
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 
 class BroadGroupViewModel(application: Application) : AndroidViewModel(application) {
@@ -39,6 +45,8 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
     // IMPORTANT: Use the correct path to your list of channels/groups in Firebase
     private val channelsRef = database.child("channels") // e.g., "channels" or "groups"
     private var channelsValueEventListener: ValueEventListener? = null
+
+    private val messagesRef = FirebaseDatabase.getInstance().getReference("messages")
 
     private val _groupCreatedEvent = MutableLiveData<Pair<String, String?>?>()
     val groupCreatedEvent: LiveData<Pair<String, String?>?> = _groupCreatedEvent
@@ -174,7 +182,6 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     // In BroadGroupViewModel.kt
-
     private fun attachChannelsListener() {
         // Ensure any existing listener is removed before attaching a new one
         channelsValueEventListener?.let {
@@ -189,21 +196,18 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
         channelsValueEventListener = channelsRef.addValueEventListener(object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 Log.d(TAG, "VM: attachChannelsListener - onDataChange. Path: ${snapshot.ref}")
-                val newGroupsFromFirebase = mutableListOf<Group>()
                 val currentUserId = firebaseAuth.currentUser?.uid
-                var errorOccurredInLoop = false
-                var chatListItemMapModified = false // To track if SharedPreferences need updating
+                var chatListItemMapModifiedInitially = false // To track if SharedPreferences need updating due to removals/creations
 
                 if (currentUserId == null) {
                     Log.e(TAG, "VM: Current user is null in attachChannelsListener. Cannot process groups.")
                     _error.postValue("User session error. Please restart.")
                     _groups.postValue(emptyList())
-                    // Optionally clear local state if user is null
                     if (currentChatItemsMap.isNotEmpty()) {
                         currentChatItemsMap.clear()
                         saveChatItemsMapToPrefs()
                     }
-                    _chatList.postValue(emptyList()) // Also update _chatList if it's still used
+                    _chatList.postValue(emptyList())
                     _isLoading.value = false
                     return
                 }
@@ -212,175 +216,184 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                     Log.w(TAG, "VM: No channels data found at ${snapshot.ref}. Clearing local state.")
                     if (currentChatItemsMap.isNotEmpty()) {
                         currentChatItemsMap.clear()
-                        chatListItemMapModified = true
+                        chatListItemMapModifiedInitially = true
                     }
                     _groups.postValue(emptyList())
-                    _chatList.postValue(emptyList()) // Also update _chatList if it's still used
-                    if (chatListItemMapModified) {
+                    _chatList.postValue(emptyList())
+                    if (chatListItemMapModifiedInitially) {
                         saveChatItemsMapToPrefs()
                     }
-                    _isLoading.value = false // Loading finished (no data found)
+                    _isLoading.value = false
                     return
                 }
 
-                val groupIdsFromFirebase = mutableSetOf<String>()
+                // --- Start Coroutine for processing groups and fetching counts ---
+                viewModelScope.launch {
+                    var errorOccurredInAsync = false
+                    val groupIdsFromFirebase = mutableSetOf<String>()
 
-                snapshot.children.forEach { groupSnapshot ->
-                    val groupId = groupSnapshot.key
-                    if (groupId == null) {
-                        Log.e(TAG, "VM: groupSnapshot key (groupId) is null. Skipping.")
-                        return@forEach
-                    }
-                    groupIdsFromFirebase.add(groupId)
-
-                    val group = groupSnapshot.getValue(Group::class.java)
-                    if (group == null) {
-                        Log.e(TAG, "VM: Failed to parse Group for ID: $groupId. Value: ${groupSnapshot.value}")
-                        errorOccurredInLoop = true
-                        return@forEach
-                    }
-                    group.id = groupId // Ensure ID is set
-
-                    // --- Retrieve or initialize ChatListItem for this group ---
-                    var chatListItem = currentChatItemsMap[groupId]
-                    if (chatListItem == null) {
-                        Log.d(TAG, "VM: No ChatListItem for group $groupId. Creating new default in-memory item.")
-                        // For a brand new group never seen by the client, all messages are effectively "new"
-                        // until the user interacts. So, lastMessageTimestampProcessedForUnread starts at 0.
-                        val newDefaultItem = ChatListItem(
-                            groupId = group.id,
-                            groupName = group.name,
-                            lastMessageText = group.lastMessage?.text,
-                            lastMessageTimestamp = group.lastMessage?.timestamp ?: 0L,
-                            lastMessageSenderName = group.lastMessage?.senderName,
-                            unreadCount = 0, // Will be updated if new messages arrive and are processed
-                            lastMessageTimestampProcessedForUnread = 0L // User hasn't "processed" anything for this new group yet
-                        )
-                        currentChatItemsMap[group.id] = newDefaultItem
-                        chatListItem = newDefaultItem // Use the newly created item for subsequent logic
-                        chatListItemMapModified = true
-                    } else {
-                        // If ChatListItem exists, ensure its details are up-to-date with the group from Firebase
-                        // (e.g., name might have changed, or last message details if not updated elsewhere)
-                        var itemUpdated = false
-                        if (chatListItem.groupName != group.name) {
-                            chatListItem.groupName = group.name
-                            itemUpdated = true
+                    val processedGroups = snapshot.children.mapNotNull { groupSnapshot ->
+                        val groupId = groupSnapshot.key
+                        if (groupId == null) {
+                            Log.e(TAG, "VM: groupSnapshot key (groupId) is null. Skipping.")
+                            return@mapNotNull null // Skip this entry
                         }
-                        // Update last message details in ChatListItem if they differ from the group's last message
-                        // This is a good place to sync if ChatListItem might not be updated by other means (e.g. direct message listeners)
-                        val groupLastMsgTs = group.lastMessage?.timestamp ?: 0L
-                        if (chatListItem.lastMessageTimestamp != groupLastMsgTs) {
-                            chatListItem.lastMessageText = group.lastMessage?.text
-                            chatListItem.lastMessageTimestamp = groupLastMsgTs
-                            chatListItem.lastMessageSenderName = group.lastMessage?.senderName
-                            itemUpdated = true
+                        groupIdsFromFirebase.add(groupId)
+
+                        val group = groupSnapshot.getValue(Group::class.java)
+                        if (group == null) {
+                            Log.e(TAG, "VM: Failed to parse Group for ID: $groupId. Value: ${groupSnapshot.value}")
+                            errorOccurredInAsync = true
+                            return@mapNotNull null // Skip this entry
                         }
-                        if (itemUpdated) {
-                            chatListItemMapModified = true
+                        group.id = groupId // Ensure ID is set
+
+                        group // Return the basic group object to be processed further by async
+                    }.map { basicGroup -> // Now for each basic group, fetch counts asynchronously
+                        async(viewModelScope.coroutineContext) { // Launch an async block
+                            val group = basicGroup // Work with the group from the previous map
+                            var chatListItemMapModifiedByThisGroup = false
+                            try {
+                                // Fetch improvement count from /messages/{groupId}/improvement_messages
+                                val improvementSnapshot = messagesRef
+                                    .child(group.id)
+                                    .child("improvement_messages")
+                                    .get().await() // Suspending call
+                                group.improvementCount = improvementSnapshot.childrenCount.toInt()
+
+                                // Fetch drawback count from /messages/{groupId}/drawback_messages
+                                val drawbackSnapshot = messagesRef
+                                    .child(group.id)
+                                    .child("drawback_messages")
+                                    .get().await() // Suspending call
+                                group.drawbackCount = drawbackSnapshot.childrenCount.toInt()
+
+                                android.util.Log.d(com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: Counts for Group ${group.id}: Improve=${group.improvementCount}, Drawback=${group.drawbackCount}")
+
+                            } catch (e: Exception) {
+                                android.util.Log.e(com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: Error fetching counts for group ${group.id}", e)
+                                group.improvementCount = 0 // Default on error
+                                group.drawbackCount = 0   // Default on error
+                                errorOccurredInAsync = true // Signal that an error happened in one of the async blocks
+                            }
+
+                            // --- Retrieve or initialize ChatListItem for this group ---
+                            // This logic should ideally be robust enough to handle existing or new ChatListItems
+                            var chatListItem = currentChatItemsMap[group.id]
+                            if (chatListItem == null) {
+                                android.util.Log.d(com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: No ChatListItem for group ${group.id}. Creating new default.")
+                                val newDefaultItem = com.example.synapse.chats.ChatListItem(
+                                    groupId = group.id,
+                                    groupName = group.name,
+                                    lastMessageText = group.lastMessage?.text,
+                                    lastMessageTimestamp = group.lastMessage?.timestamp ?: 0L,
+                                    lastMessageSenderName = group.lastMessage?.senderName,
+                                    unreadCount = 0, // Will be updated if new messages arrive
+                                    lastMessageTimestampProcessedForUnread = 0L
+                                )
+                                currentChatItemsMap[group.id] = newDefaultItem
+                                chatListItem = newDefaultItem
+                                chatListItemMapModifiedByThisGroup = true // Map was modified
+                            } else {
+                                // If ChatListItem exists, ensure its details are up-to-date
+                                var itemUpdated = false
+                                if (chatListItem.groupName != group.name) {
+                                    chatListItem.groupName = group.name
+                                    itemUpdated = true
+                                }
+                                val groupLastMsgTs = group.lastMessage?.timestamp ?: 0L
+                                if (chatListItem.lastMessageTimestamp != groupLastMsgTs) {
+                                    chatListItem.lastMessageText = group.lastMessage?.text
+                                    chatListItem.lastMessageTimestamp = groupLastMsgTs
+                                    chatListItem.lastMessageSenderName = group.lastMessage?.senderName
+                                    itemUpdated = true
+                                }
+                                if (itemUpdated) {
+                                    chatListItemMapModifiedByThisGroup = true // Map was modified
+                                }
+                            }
+                            // --- End ChatListItem retrieval/initialization ---
+
+                            // --- Dot Logic (using the retrieved/updated chatListItem) ---
+                            val lastMessageInGroup = group.lastMessage
+                            val currentLastMessageTimestamp = lastMessageInGroup?.timestamp ?: 0L
+                            val processedTimestampForUnread = chatListItem.lastMessageTimestampProcessedForUnread
+
+                            // Log details for dot logic debugging
+                            // Log.d(TAG, "VM: DOT LOGIC - Group ${group.id}: CurrentUser: $currentUserId, LastMsgSender: ${lastMessageInGroup?.senderId}, LastMsgTS: $currentLastMessageTimestamp, ProcessedTS: $processedTimestampForUnread")
+
+                            val isSenderNotCurrentUser = lastMessageInGroup?.senderId != null && lastMessageInGroup.senderId != currentUserId
+                            var shouldShowDot = false
+                            if (currentLastMessageTimestamp > 0 && isSenderNotCurrentUser) {
+                                if (currentLastMessageTimestamp > processedTimestampForUnread) {
+                                    shouldShowDot = true
+                                }
+                            }
+                            group.showUnreadDot = shouldShowDot
+                            // --- End Dot Logic ---
+
+                            // --- Update Group object with unread info from ChatListItem ---
+                            group.unreadCount = chatListItem.unreadCount // This count comes from ChatListItem's own logic
+                            val isLastMsgFromAnother = group.lastMessage?.senderId != null &&
+                                    group.lastMessage?.senderId != currentUserId
+                            group.hasUnreadMessagesFromOthers = (group.unreadCount > 0 && isLastMsgFromAnother)
+                            // --- End Update Group object ---
+
+                            android.util.Log.d(
+                                com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: Processed Group ID ${group.id}: Name='${group.name}', " +
+                                    "LMsg='${group.lastMessage?.text?.take(20)}', LMsgTS='${group.lastMessage?.timestamp}', " +
+                                    "ProcessedTS='${chatListItem.lastMessageTimestampProcessedForUnread}', " +
+                                    "ShowDot=${group.showUnreadDot}, UnreadCount=${group.unreadCount}, HasUnreadOthers=${group.hasUnreadMessagesFromOthers}, " +
+                                    "ImpCnt=${group.improvementCount}, DrawCnt=${group.drawbackCount}")
+
+                            kotlin.Pair(
+                                group,
+                                chatListItemMapModifiedByThisGroup
+                            ) // Return the fully processed group and if its ChatListItem modified the map
                         }
+                    }.awaitAll() // Wait for all async blocks (count fetching and group processing) to complete
+
+                    // Extract the groups and check if any ChatListItem operation modified the map
+                    val newGroupsFromFirebase = processedGroups.map { it.first }
+                    val wasChatListItemMapModifiedDuringProcessing = processedGroups.any { it.second } || chatListItemMapModifiedInitially
+
+
+                    if (errorOccurredInAsync) { // Check if any error occurred during the async operations
+                        _error.postValue("Error parsing some group data or fetching counts. Check logs.")
                     }
-                    // --- End ChatListItem retrieval/initialization ---
 
-// ... inside snapshot.children.forEach { groupSnapshot ->
-// ... after 'val group = groupSnapshot.getValue(Group::class.java)'
-// ... and after 'var chatListItem = currentChatItemsMap[groupId]' block
-
-                    // --- Dot Logic ---
-                    val lastMessageInGroup = group.lastMessage // Get the LastMessage object
-                    val currentLastMessageTimestamp = lastMessageInGroup?.timestamp ?: 0L // Timestamp of the latest message in the group
-                    val processedTimestampForUnread = chatListItem.lastMessageTimestampProcessedForUnread
-
-                    Log.d(TAG, "VM: CHECKING DOT LOGIC for Group ${group.id}: Name='${group.name}'")
-                    Log.d(TAG, "VM: Current User ID: $currentUserId")
-                    Log.d(TAG, "VM: Last Message Sender ID: ${lastMessageInGroup?.senderId}")
-                    Log.d(TAG, "VM: Last Message Timestamp (currentLastMessageTimestamp): $currentLastMessageTimestamp")
-                    Log.d(TAG, "VM: ChatListItem Processed Timestamp (processedTimestampForUnread): $processedTimestampForUnread")
-
-                    val isSenderNotCurrentUser = lastMessageInGroup?.senderId != null && lastMessageInGroup.senderId != currentUserId
-                    Log.d(TAG, "VM: Is Sender NOT Current User? $isSenderNotCurrentUser")
-
-                    var shouldShowDot = false
-                    if (currentLastMessageTimestamp > 0 && isSenderNotCurrentUser) {
-                        Log.d(TAG, "VM: Conditions (last msg exists AND senderId != currentUserId) ARE TRUE.")
-                        if (currentLastMessageTimestamp > processedTimestampForUnread) {
-                            shouldShowDot = true
-                            Log.d(TAG, "VM: Timestamp condition (current > processed) IS TRUE. shouldShowDot = true")
-                        } else {
-                            Log.d(TAG, "VM: Timestamp condition (current > processed) IS FALSE. shouldShowDot remains false. ProcessedTS might be equal or newer.")
+                    // Handle groups that were in currentChatItemsMap but are no longer in Firebase
+                    var mapModifiedByRemovals = false
+                    val groupIdsToRemoveFromMap = currentChatItemsMap.keys.filterNot { it in groupIdsFromFirebase }
+                    if (groupIdsToRemoveFromMap.isNotEmpty()) {
+                        groupIdsToRemoveFromMap.forEach { groupIdToRemove ->
+                            currentChatItemsMap.remove(groupIdToRemove)
+                            Log.d(TAG, "VM: Removed ChatListItem for deleted group ID '$groupIdToRemove'.")
                         }
-                    } else {
-                        Log.d(TAG, "VM: Conditions (last msg exists AND senderId != currentUserId) ARE FALSE. Last msg might be null, from current user, or senderId is null. shouldShowDot remains false.")
+                        mapModifiedByRemovals = true // Map was modified
                     }
-                    group.showUnreadDot = shouldShowDot
-                    Log.d(TAG, "VM: FINAL ShowDot for group ${group.id}: ${group.showUnreadDot}")
-                    // --- End Dot Logic ---
 
-                    // --- Update Group object with unread info from ChatListItem ---
-                    // The unreadCount on the Group object should reflect the detailed unreadCount from ChatListIte
-                    // ... rest of your group processing logic
-
-                    //--- Update Group object with unread info from ChatListItem ---
-                    // The unreadCount on the Group object should reflect the detailed unreadCount from ChatListItem.
-                    group.unreadCount = chatListItem.unreadCount
-                    val isLastMsgFromAnother = group.lastMessage?.senderId != null &&
-                            group.lastMessage?.senderId != currentUserId
-                    // hasUnreadMessagesFromOthers is true if there's any unread message AND the last one is from someone else.
-                    // Or, more simply, if the unread count (managed by ChatListItem) is > 0 and last msg is from other.
-                    group.hasUnreadMessagesFromOthers = (group.unreadCount > 0 && isLastMsgFromAnother)
-                    // --- End Update Group object ---
-
-                    Log.d(TAG, "VM: Processed Group ID ${group.id}: Name='${group.name}', " +
-                            "LMsg='${group.lastMessage?.text?.take(20)}', LMsgTS='${group.lastMessage?.timestamp}', " +
-                            "ProcessedTS='${chatListItem.lastMessageTimestampProcessedForUnread}', " +
-                            "ShowDot=${group.showUnreadDot}, UnreadCount=${group.unreadCount}, HasUnreadOthers=${group.hasUnreadMessagesFromOthers}")
-
-                    newGroupsFromFirebase.add(group)
-                } // End of snapshot.children.forEach
-
-                if (errorOccurredInLoop) {
-                    _error.postValue("Error parsing some group data. Check logs.")
-                }
-
-                // Handle groups that were in currentChatItemsMap but are no longer in Firebase
-                val groupIdsToRemoveFromMap = currentChatItemsMap.keys.filterNot { it in groupIdsFromFirebase }
-                if (groupIdsToRemoveFromMap.isNotEmpty()) {
-                    groupIdsToRemoveFromMap.forEach { groupIdToRemove ->
-                        currentChatItemsMap.remove(groupIdToRemove)
-                        Log.d(TAG, "VM: Removed ChatListItem for deleted group ID '$groupIdToRemove'.")
+                    if (wasChatListItemMapModifiedDuringProcessing || mapModifiedByRemovals) {
+                        saveChatItemsMapToPrefs() // Save if the map was changed
                     }
-                    chatListItemMapModified = true // Map was modified
-                }
 
-                if (chatListItemMapModified) {
-                    saveChatItemsMapToPrefs() // Save if the map was changed (new items or removals)
-                }
+                    val sortedGroups = newGroupsFromFirebase.sortedByDescending { it.lastMessage?.timestamp ?: it.timestamp ?: 0L }
+                    _groups.postValue(sortedGroups)
 
-                val sortedGroups = newGroupsFromFirebase.sortedByDescending { it.lastMessage?.timestamp ?: it.timestamp ?: 0L }
-                _groups.postValue(sortedGroups)
-
-                // Update _chatList separately if it's still actively used by another part of your UI
-                // and is derived from currentChatItemsMap
-                publishChatListUpdates()
-                _isLoading.value = false
-            }
-
-            // In BroadGroupViewModel.kt (continuing attachChannelsListener's onCancelled)
-
-            // In BroadGroupViewModel.kt (within attachChannelsListener's ValueEventListener)
+                    publishChatListUpdates() // Update _chatList based on the potentially modified currentChatItemsMap
+                    _isLoading.value = false
+                    Log.d(TAG, "VM: Finished processing ${newGroupsFromFirebase.size} groups. isLoading set to false.")
+                } // End of viewModelScope.launch
+            } // End of onDataChange
 
             override fun onCancelled(error: DatabaseError) {
-                // Use toString() for the full path, or .key for just the last segment.
-                // For a listener attached to 'channelsRef', toString() gives the full URL.
-                val pathInfo = channelsRef.toString() // More robust way to get the path information
-
+                val pathInfo = channelsRef.toString()
                 Log.e(TAG, "VM: Firebase listener for channels cancelled: ${error.message} at path: $pathInfo", error.toException())
-                _isLoading.value = false // Loading finished (due to cancellation/error)
-
+                _isLoading.value = false
+                _error.postValue("Channel listener cancelled: ${error.message}")
             }
-        })
+        }) // End of addValueEventListener
     }
-
     // Ensure publishChatListUpdates uses the current state of currentChatItemsMap
     fun publishChatListUpdates() {
         val sortedChatListItems = currentChatItemsMap.values.toList()

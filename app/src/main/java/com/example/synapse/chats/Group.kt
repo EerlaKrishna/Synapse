@@ -12,6 +12,8 @@ data class Group(
     var timestamp: Long? = null,
     var lastMessage: Message? = null,
     var lastMessageTimestamp: Long? = null,
+    var improvementCount: Int = 0,
+    var drawbackCount: Int = 0,
     @get:Exclude
     var unreadCount: Int = 0,
     @get:Exclude
@@ -28,7 +30,9 @@ data class Group(
         createdBy = null,
         timestamp = null,
         lastMessage = null,
-        lastMessageTimestamp = null
+        lastMessageTimestamp = null,
+        improvementCount=0,
+        drawbackCount=0
         // unreadCount and hasUnreadMessagesFromOthers are excluded, so not in primary constructor for Firebase
     )
 

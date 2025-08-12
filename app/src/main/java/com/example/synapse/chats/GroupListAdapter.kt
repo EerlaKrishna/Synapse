@@ -58,7 +58,7 @@ class GroupListAdapter(
         }
 
         fun bind(group: Group) {
-            Log.d(TAG, "Adapter: Binding group ID ${group.id}, Name: ${group.name}, ShowDot: ${group.showUnreadDot}, LastMsgTS: ${group.lastMessage?.timestamp}")
+            Log.d(TAG, "Adapter: Binding group ID ${group.id}, Name: ${group.name}, Improve: ${group.improvementCount}, Drawback: ${group.drawbackCount}, ShowDot: ${group.showUnreadDot}")
             binding.groupNameTextView.text = group.name
             val lastMessage = group.lastMessage
 
@@ -113,19 +113,28 @@ class GroupListAdapter(
                 Log.d(TAG, "Group '${group.name}': Unread dot GONE (showUnreadDot is false).")
             }
             // --- END UNREAD DOT INDICATOR LOGIC ---
-
-            // Numerical Unread Count
-            // Decide how you want the count and dot to interact.
-            // Option 1: Show count only if dot is NOT shown.
-            // if (group.unreadCount > 0 && !group.showUnreadDot) {
-            // Option 2: Show count always if > 0, regardless of dot.
-            if (group.unreadCount > 0) {
-                binding.unreadCountTextView.text = group.unreadCount.toString()
-                binding.unreadCountTextView.visibility = View.VISIBLE
-                Log.d(TAG, "Group '${group.name}': Unread count VISIBLE (${group.unreadCount}).")
+            // Improvement Message Icon & Count
+            if (group.improvementCount > 0) {
+                binding.improvementMessageContainer.visibility = View.VISIBLE // Or your specific icon view
+                binding.improvementCountBadge.text = group.improvementCount.toString()
+                binding.improvementCountBadge.visibility = View.VISIBLE
+                Log.d(TAG, "Group '${group.name}': Improvement count ${group.improvementCount}, VISIBLE.")
             } else {
-                binding.unreadCountTextView.visibility = View.GONE
-                Log.d(TAG, "Group '${group.name}': Unread count GONE.")
+                binding.improvementMessageContainer.visibility = View.GONE
+                binding.improvementCountBadge.visibility = View.GONE // Also hide badge if container is gone
+                Log.d(TAG, "Group '${group.name}': Improvement count 0, GONE.")
+            }
+
+            // Drawback Message Icon & Count
+            if (group.drawbackCount > 0) {
+                binding.drawbackMessageContainer.visibility = View.VISIBLE // Or your specific icon view
+                binding.drawbackCountBadge.text = group.drawbackCount.toString()
+                binding.drawbackCountBadge.visibility = View.VISIBLE
+                Log.d(TAG, "Group '${group.name}': Drawback count ${group.drawbackCount}, VISIBLE.")
+            } else {
+                binding.drawbackMessageContainer.visibility = View.GONE
+                binding.drawbackCountBadge.visibility = View.GONE // Also hide badge if container is gone
+                Log.d(TAG, "Group '${group.name}': Drawback count 0, GONE.")
             }
         }
 
@@ -146,6 +155,8 @@ class GroupListAdapter(
         }
     }
 
+    // In GroupListAdapter.kt
+
     class GroupDiffCallback : DiffUtil.ItemCallback<Group>() {
         override fun areItemsTheSame(oldItem: Group, newItem: Group): Boolean {
             return oldItem.id == newItem.id
@@ -154,17 +165,14 @@ class GroupListAdapter(
         override fun areContentsTheSame(oldItem: Group, newItem: Group): Boolean {
             // Check all fields that, if changed, should trigger a UI update for the item.
             val contentsSame = oldItem.name == newItem.name &&
-                    // oldItem.description == newItem.description && // Only if displayed
                     oldItem.lastMessage?.text == newItem.lastMessage?.text &&
                     oldItem.lastMessage?.timestamp == newItem.lastMessage?.timestamp &&
-// oldItem.last
-// In GroupListAdapter.kt (continuing GroupDiffCallback)
-
-                    // oldItem.lastMessage?.senderName == newItem.lastMessage?.senderName && // Only if displayed
-                    oldItem.lastMessage?.messageType == newItem.lastMessage?.messageType && // Only if displayed
-                    oldItem.unreadCount == newItem.unreadCount && // For the numerical count
-                    oldItem.hasUnreadMessagesFromOthers == newItem.hasUnreadMessagesFromOthers && // If used for bolding or other logic
-                    oldItem.showUnreadDot == newItem.showUnreadDot // CRUCIAL for the dot indicator
+                    oldItem.lastMessage?.messageType == newItem.lastMessage?.messageType &&
+                    oldItem.unreadCount == newItem.unreadCount &&
+                    oldItem.hasUnreadMessagesFromOthers == newItem.hasUnreadMessagesFromOthers &&
+                    oldItem.showUnreadDot == newItem.showUnreadDot && // CRUCIAL for the dot indicator
+                    oldItem.improvementCount == newItem.improvementCount && // <-- ADD THIS LINE
+                    oldItem.drawbackCount == newItem.drawbackCount     // <-- ADD THIS LINE
 
             // Optional: Detailed logging for debugging differences
             if (!contentsSame) {
@@ -189,6 +197,13 @@ class GroupListAdapter(
                 }
                 if (oldItem.showUnreadDot != newItem.showUnreadDot) {
                     Log.d("GroupDiffCallback", "--> showUnreadDot changed: ${oldItem.showUnreadDot} vs ${newItem.showUnreadDot}")
+                }
+                // Add logging for the new counts if you want
+                if (oldItem.improvementCount != newItem.improvementCount) {
+                    Log.d("GroupDiffCallback", "--> improvementCount changed: ${oldItem.improvementCount} vs ${newItem.improvementCount}")
+                }
+                if (oldItem.drawbackCount != newItem.drawbackCount) {
+                    Log.d("GroupDiffCallback", "--> drawbackCount changed: ${oldItem.drawbackCount} vs ${newItem.drawbackCount}")
                 }
             }
             return contentsSame
