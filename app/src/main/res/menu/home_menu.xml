@@ -9,12 +9,6 @@
     app:actionViewClass="androidx.appcompat.widget.SearchView" /> <!-- If using SearchView directly in menu -->
 
     <item
-        android:id="@+id/action_notifications"
-    android:title="Notifications"
-    android:icon="@drawable/notification_image"
-        app:showAsAction="ifRoom"/>
-
-    <item
         android:id="@+id/action_logout"
         android:title="Logout"
         app:showAsAction="never" />

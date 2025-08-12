@@ -587,16 +587,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
                                         TAG,
                                         "NEW message for NOTIFICATION in group (name: $groupNameForPath, type: $messageTypePath): ${message.text}"
                                     )
-                                    // currentMessageTimestamp is smart-cast to Long here
-                                    val notificationId = (listenerCompositeKey.hashCode() + currentMessageTimestamp.hashCode()) % Int.MAX_VALUE
-                                    NotificationHelper.showBroadGroupMessageNotification(
-                                        applicationContext,
-                                        groupIdForMapping,
-                                        groupNameForPath,
-                                        message.senderName ?: "Someone",
-                                        message.text ?: "New message received",
-                                        notificationId
-                                    )
                                 }
                             }
                         }
@@ -719,11 +709,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.home_menu, menu)
 
-        // DM Notification Badge Setup
-        dmNotificationBellMenuItem = menu?.findItem(R.id.action_notifications)
-        // Initial update for DM badge based on ViewModel's current value
-       // updateDirectMessageNotificationBadge(unreadCountViewModel.unreadDirectMessagesCount.value ?: 0)
-
         // Search View Setup
         val searchItem = menu?.findItem(R.id.action_search_dms) // Use your search item ID
         val searchView = searchItem?.actionView as? SearchView
@@ -776,15 +761,6 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         return when (item.itemId) {
             R.id.action_logout -> {
                 performLogout()
-                true
-            }
-            R.id.action_notifications -> { // This is for DMs
-                Toast.makeText(this, " Messages notifications clicked", Toast.LENGTH_SHORT).show()
-                val dmTabIndex = tabTitles.indexOf("Direct Messages")
-                if (dmTabIndex != -1) {
-                    binding.viewPagerHome.currentItem = dmTabIndex
-                }
-                // unreadCountViewModel.clearUnreadDirectMessages() // If you want to clear on bell click
                 true
             }
             else -> super.onOptionsItemSelected(item)
