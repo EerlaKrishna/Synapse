@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.groups
 
 import android.content.Context
 import android.os.Bundle
@@ -11,11 +11,11 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.example.synapse.chats.BroadGroupViewModel
-import com.example.synapse.chats.CreateGroupDialogFragment
-import com.example.synapse.chats.Group
-import com.example.synapse.chats.GroupListAdapter // Your adapter
+import com.example.synapse.R
+import com.example.synapse.model.Group
+import com.example.synapse.groups.ui.GroupListAdapter // Your adapter
 import com.example.synapse.databinding.FragmentBroadGroupBinding
+import com.example.synapse.home.HomeViewModel
 
 interface ChatNavigationListener {
     fun onNavigateToChatRoom(groupId: String, groupName: String?)

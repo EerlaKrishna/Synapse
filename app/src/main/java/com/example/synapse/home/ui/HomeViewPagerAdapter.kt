@@ -1,9 +1,10 @@
-package com.example.synapse
+package com.example.synapse.home.ui
 
 import android.util.Log
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
+import com.example.synapse.groups.BroadGroupFragment
 
 class HomeViewPagerAdapter(fragmentActivity: FragmentActivity) : FragmentStateAdapter(fragmentActivity) {
 

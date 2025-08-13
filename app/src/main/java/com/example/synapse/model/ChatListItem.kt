@@ -1,4 +1,4 @@
-package com.example.synapse.chats // Or your actual package for models
+package com.example.synapse.model // Or your actual package for models
 
 data class ChatListItem(
     var groupId: String = "",

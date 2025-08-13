@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
     android:padding="24dp"
-    tools:context=".LoginActivity">
+    tools:context=".auth.LoginActivity">
 
     <!-- ImageView for the Synapse Logo -->
 

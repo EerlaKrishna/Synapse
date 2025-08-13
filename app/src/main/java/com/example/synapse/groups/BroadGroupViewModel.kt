@@ -1,4 +1,4 @@
-package com.example.synapse.chats
+package com.example.synapse.groups
 
 import android.app.Application
 import android.content.Context
@@ -8,7 +8,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import com.example.synapse.AppConfig
+import com.example.synapse.model.ChatListItem
+import com.example.synapse.model.Group
+import com.example.synapse.model.GroupData
+import com.example.synapse.config.AppConfig
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
@@ -268,10 +271,10 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                                     .get().await() // Suspending call
                                 group.drawbackCount = drawbackSnapshot.childrenCount.toInt()
 
-                                android.util.Log.d(com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: Counts for Group ${group.id}: Improve=${group.improvementCount}, Drawback=${group.drawbackCount}")
+                                android.util.Log.d(TAG, "VM: Counts for Group ${group.id}: Improve=${group.improvementCount}, Drawback=${group.drawbackCount}")
 
                             } catch (e: Exception) {
-                                android.util.Log.e(com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: Error fetching counts for group ${group.id}", e)
+                                android.util.Log.e(TAG, "VM: Error fetching counts for group ${group.id}", e)
                                 group.improvementCount = 0 // Default on error
                                 group.drawbackCount = 0   // Default on error
                                 errorOccurredInAsync = true // Signal that an error happened in one of the async blocks
@@ -281,8 +284,8 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                             // This logic should ideally be robust enough to handle existing or new ChatListItems
                             var chatListItem = currentChatItemsMap[group.id]
                             if (chatListItem == null) {
-                                android.util.Log.d(com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: No ChatListItem for group ${group.id}. Creating new default.")
-                                val newDefaultItem = com.example.synapse.chats.ChatListItem(
+                                android.util.Log.d(TAG, "VM: No ChatListItem for group ${group.id}. Creating new default.")
+                                val newDefaultItem = ChatListItem(
                                     groupId = group.id,
                                     groupName = group.name,
                                     lastMessageText = group.lastMessage?.text,
@@ -340,7 +343,7 @@ class BroadGroupViewModel(application: Application) : AndroidViewModel(applicati
                             // --- End Update Group object ---
 
                             android.util.Log.d(
-                                com.example.synapse.chats.BroadGroupViewModel.Companion.TAG, "VM: Processed Group ID ${group.id}: Name='${group.name}', " +
+                                TAG, "VM: Processed Group ID ${group.id}: Name='${group.name}', " +
                                     "LMsg='${group.lastMessage?.text?.take(20)}', LMsgTS='${group.lastMessage?.timestamp}', " +
                                     "ProcessedTS='${chatListItem.lastMessageTimestampProcessedForUnread}', " +
                                     "ShowDot=${group.showUnreadDot}, UnreadCount=${group.unreadCount}, HasUnreadOthers=${group.hasUnreadMessagesFromOthers}, " +

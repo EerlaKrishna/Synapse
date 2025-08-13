@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.chats.ui
 
 import android.os.Bundle
 import android.util.Log
@@ -7,6 +7,8 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.synapse.chats.model.Message
+import com.example.synapse.MessageAdapter
 import com.example.synapse.databinding.FragmentImprovementsBinding // Your ViewBinding class
 import com.google.firebase.auth.FirebaseAuth // For currentUserId
 import com.google.firebase.database.*

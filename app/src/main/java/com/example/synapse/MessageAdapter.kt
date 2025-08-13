@@ -8,6 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.example.synapse.chats.model.Message
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

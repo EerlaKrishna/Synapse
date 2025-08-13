@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.services
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,6 +10,8 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
+import com.example.synapse.R
+import com.example.synapse.home.HomeActivity
 import com.google.firebase.messaging.FirebaseMessagingService // Make sure this import is present
 import com.google.firebase.messaging.RemoteMessage     // And this one for the parameter
 
@@ -73,7 +75,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() { // Use the simpl
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID,
+            val channel = NotificationChannel(
+                CHANNEL_ID,
                 "New Messages",
                 NotificationManager.IMPORTANCE_HIGH)
             notificationManager.createNotificationChannel(channel)

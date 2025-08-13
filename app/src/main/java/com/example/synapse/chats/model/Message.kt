@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.chats.model
 
 import com.google.firebase.database.Exclude // Optional: if you have fields not in Firebase
 import com.google.firebase.database.IgnoreExtraProperties // Good practice

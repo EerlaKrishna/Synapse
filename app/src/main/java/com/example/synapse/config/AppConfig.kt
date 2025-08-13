@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.config
 
     object AppConfig {
         // IMPORTANT: Replace these with the ACTUAL Firebase UIDs of your admin users

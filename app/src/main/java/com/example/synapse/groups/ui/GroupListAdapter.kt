@@ -1,4 +1,4 @@
-package com.example.synapse.chats
+package com.example.synapse.groups.ui
 
 import android.graphics.Typeface // For setting bold text
 import android.text.format.DateUtils
@@ -10,6 +10,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.synapse.R
+import com.example.synapse.model.Group
 import com.example.synapse.databinding.ListItemGroupDisplayBinding // Your ViewBinding class
 import java.text.SimpleDateFormat
 import java.util.Calendar

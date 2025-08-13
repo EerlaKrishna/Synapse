@@ -1,4 +1,4 @@
-package com.example.synapse.chats
+package com.example.synapse.model
 
 data class GroupData(
     val id: String,

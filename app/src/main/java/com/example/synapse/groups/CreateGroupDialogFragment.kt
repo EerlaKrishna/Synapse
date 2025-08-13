@@ -1,4 +1,4 @@
-package com.example.synapse.chats
+package com.example.synapse.groups
 
 import android.app.Dialog
 import android.os.Bundle
@@ -8,7 +8,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
-import androidx.navigation.activity
 import com.example.synapse.R // Make sure this import is correct
 import com.google.firebase.auth.FirebaseAuth
 

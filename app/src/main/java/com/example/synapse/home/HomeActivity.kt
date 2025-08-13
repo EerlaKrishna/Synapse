@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.home
 
 import android.Manifest
 import android.content.Intent
@@ -12,7 +12,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels // For normal ViewModels
@@ -20,15 +19,19 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.children
 import androidx.lifecycle.ViewModelProvider // Required for activity-scoped ViewModel
 import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.navigateUp
 import androidx.navigation.ui.setupActionBarWithNavController
-import com.example.synapse.chats.BroadGroupViewModel
-import com.example.synapse.chats.GroupData
+import com.example.synapse.groups.BroadGroupFragment
+import com.example.synapse.groups.ChatNavigationListener
+import com.example.synapse.home.ui.HomeViewPagerAdapter
+import com.example.synapse.chats.model.Message
+import com.example.synapse.R
+import com.example.synapse.auth.LoginActivity
+import com.example.synapse.groups.BroadGroupViewModel
 import com.example.synapse.databinding.ActivityHomeBinding
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
@@ -38,7 +41,7 @@ import com.google.firebase.database.*
 // Assuming Message.kt exists:
 // import com.example.synapse.models.Message // Make sure this path is correct
 
-class HomeActivity : AppCompatActivity(),ChatNavigationListener {
+class HomeActivity : AppCompatActivity(), ChatNavigationListener {
 
     private val homeViewModel: HomeViewModel by viewModels()
 
@@ -73,7 +76,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
     // --- Group Data Cache (ID -> GroupData(id, name)) ---
     // This cache is still useful for quick name lookups if needed,
     // though ViewModel becomes primary source for UI list items.
-  private val groupDataCache= mutableMapOf<String,com.example.synapse.chats.GroupData>()
+  private val groupDataCache= mutableMapOf<String, com.example.synapse.model.GroupData>()
 
     // --- Tracking currently open broad group chat ---
     // To help BroadGroupFragment clear unread count onResume
@@ -392,7 +395,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
         Log.d(TAG, "Fetching broad group metadata from 'channels'.")
         channelsMetadataValueListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val fetchedGroups = mutableListOf<com.example.synapse.chats.GroupData>()
+                val fetchedGroups = mutableListOf<com.example.synapse.model.GroupData>()
                 groupDataCache.clear()
 
                 if (snapshot.exists()) {
@@ -400,7 +403,7 @@ class HomeActivity : AppCompatActivity(),ChatNavigationListener {
                         val groupId = groupSnapshot.key
                         val groupName = groupSnapshot.child("name").getValue(String::class.java)
                         if (groupId != null && groupName != null) {
-                            val group = com.example.synapse.chats.GroupData(groupId, groupName)
+                            val group = com.example.synapse.model.GroupData(groupId, groupName)
                             fetchedGroups.add(group)
                             groupDataCache[groupId] = group // Update cache
                         } else {

@@ -6,7 +6,7 @@
 
     <fragment
         android:id="@+id/broadGroupFragment"
-        android:name="com.example.synapse.BroadGroupFragment"
+        android:name="com.example.synapse.groups.BroadGroupFragment"
         android:label="@string/app_name"
         tools:layout="@layout/fragment_broad_group">
         <action

@@ -1,6 +1,6 @@
-package com.example.synapse.chats
+package com.example.synapse.model
 
-import com.example.synapse.Message
+import com.example.synapse.chats.model.Message
 import com.google.firebase.database.Exclude // Import Exclude
 
 data class Group(

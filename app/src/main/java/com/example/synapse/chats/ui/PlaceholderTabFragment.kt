@@ -1,6 +1,6 @@
 // Create this simple placeholder fragment for now in a new file (e.g., PlaceholderTabFragment.kt)
 // So you can see the tabs working.
- package com.example.synapse.chats
+ package com.example.synapse.chats.ui
 
  import android.os.Bundle
  import android.view.LayoutInflater

@@ -1,4 +1,4 @@
-package com.example.synapse
+package com.example.synapse.home
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
